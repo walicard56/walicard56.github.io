@@ -13,9 +13,9 @@ window.FOLEGO_CONFIG = {
 
   // Supabase (banco de dados dos clientes): Project Settings > API.
   // URL do projeto, ex.: 'https://abcdefgh.supabase.co'
-  SUPABASE_URL: '',
+  SUPABASE_URL: 'https://xydjjgkttnteusedtynj.supabase.co',
   // Chave pública "anon" / "publishable" (pode ficar no site; NUNCA use a service_role aqui).
-  SUPABASE_ANON_KEY: '',
+  SUPABASE_ANON_KEY: 'sb_publishable_a9RiaatHaT36YPNCifDftw_QpR5WVfK',
 
   // Dias de uso grátis contados a partir do primeiro login.
   TRIAL_DAYS: 7,
