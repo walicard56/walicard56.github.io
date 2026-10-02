@@ -39,7 +39,7 @@ function createServer() {
         return {};
       }
       const t = DB[a.table];
-      if (a.insert) { (Array.isArray(t) ? t : []).push(a.insert); return { data: null, error: null }; }
+      if (a.insert) { if (Array.isArray(t)) t.push(a.insert); return { data: null, error: null }; }
       if (a.upsert) {
         const row = { ...a.upsert, updated_at: new Date().toISOString() };
         t[row.user_id || row.endpoint] = row;

@@ -14,15 +14,19 @@ Arquivos:
   privacy.html / termos.html .. política de privacidade e termos (Google exige)
   .well-known/assetlinks.json . liga o site ao app Android (tira a barra de endereço)
 
-Como funciona a monetização:
-  - A pessoa entra com a conta Google  -> ganha 7 dias grátis (sem cartão).
-  - Conta, dados e teste grátis ficam no banco de dados Supabase. O teste é
-    controlado pelo servidor: apagar o app ou a conta não dá teste novo.
-  - No fim do teste aparece a tela de assinatura: R$ 9,99/mês pela Google Play.
-  - Cobrança, renovação, cancelamento e reembolso: tudo pela Google Play.
+Como funciona a monetização (freemium):
+  - O app é GRÁTIS PARA SEMPRE, sem login: mês, ganhos/gastos, reserva,
+    1 dívida e dicas da Lumi.
+  - Premium: histórico/relatórios, dívidas ilimitadas, orçamento, renda
+    segura, área MEI, Lumi com IA e importação de extrato.
+  - Entrar com Google salva os dados na nuvem e dá 7 dias de Premium grátis
+    (sem cartão). Depois, o app volta ao grátis — não bloqueia nada.
+  - Assinatura: R$ 9,99/mês ou R$ 79,90/ano, pela Google Play.
+  - O teste é controlado pelo servidor (Supabase): apagar o app ou a conta
+    não dá outro teste.
   - Enquanto GOOGLE_CLIENT_ID, SUPABASE_URL e SUPABASE_ANON_KEY não estiverem
-    preenchidos no config.js, o app fica em "modo livre" (sem login e sem
-    cobrança) — bom para testar o visual.
+    preenchidos no config.js, o app fica em "modo livre" (tudo liberado,
+    sem login) — bom para testar.
 
 
 PASSO 1 — CRIAR O LOGIN COM GOOGLE (grátis)
@@ -47,6 +51,9 @@ PASSO 1B — CRIAR O BANCO DE DADOS NO SUPABASE (grátis até 50 mil usuários/m
      (região: South America (São Paulo)). Guarde a senha do banco.
   2. SQL Editor > New query > cole TODO o arquivo
      supabase/migrations/20261002000000_folego_init.sql > Run.
+     Repita com cada arquivo seguinte da pasta supabase/migrations, em
+     ordem de nome (ex.: ..._feedback.sql). Feedback dos usuários aparece em
+     Table Editor > feedback.
      Isso cria as tabelas (profiles, user_data, subscriptions, trial_claims)
      com segurança: cada cliente só enxerga os próprios dados.
   3. Authentication > Sign In / Providers > Google > Enable:
@@ -63,6 +70,19 @@ PASSO 1B — CRIAR O BANCO DE DADOS NO SUPABASE (grátis até 50 mil usuários/m
 
   As funções do servidor (validar assinatura e excluir conta) são instaladas
   no Passo 5B, depois de criar o app no Play Console.
+
+
+PASSO 1C — ESTATÍSTICAS DE USO (opcional, grátis até 1 milhão de eventos/mês)
+------------------------------------------------------------------------------
+  1. Crie a conta em https://posthog.com (região US ou EU).
+  2. Copie a "Project API key" (começa com phc_) para config.js >
+     POSTHOG_KEY. Se escolheu EU, troque POSTHOG_HOST para
+     https://eu.i.posthog.com
+  3. Em PostHog > Product analytics > New insight > Funnel, monte:
+     app_aberto > configuracao_inicial > lancamento_rapido > login_ok >
+     paywall_visto > assinatura_concluida
+     Erros do app aparecem como o evento "app_error".
+  (O usuário pode desligar em Conta e ajustes > Preferências.)
 
 
 PASSO 2 — TESTAR NO CELULAR
@@ -98,10 +118,11 @@ PASSO 5 — CRIAR O APP E A ASSINATURA NO PLAY CONSOLE
   1. "Criar app" > Fôlego, português (Brasil), App, Gratuito
      (é gratuito para baixar; a cobrança é a assinatura dentro do app).
   2. Envie o .aab em "Teste interno" (libera o menu de Monetização).
-  3. Monetizar > Produtos > Assinaturas > "Criar assinatura":
-       - ID do produto: folego_premium_mensal  (igual ao PLAY_SKU do config.js)
-       - Plano básico: renovação automática, mensal, preço R$ 9,99
-       - Ative o plano básico.
+  3. Monetizar > Produtos > Assinaturas > crie DUAS assinaturas:
+       a) ID: folego_premium_mensal  (= PLAY_SKU do config.js)
+          Plano básico: renovação automática, mensal, R$ 9,99. Ative.
+       b) ID: folego_premium_anual   (= PLAY_SKU_ANUAL do config.js)
+          Plano básico: renovação automática, anual, R$ 79,90. Ative.
      (O teste de 7 dias já é feito pelo próprio app. Não crie oferta de
       teste grátis na Play, senão a pessoa ganha dois testes.)
   4. Configuração > Integridade do app > "Assinatura de apps": copie a
@@ -127,7 +148,7 @@ Google reembolsa a compra em 3 dias.
   4. Instale as funções. No computador, com Node instalado:
        npx supabase login
        npx supabase link --project-ref SEU_PROJECT_REF
-       npx supabase secrets set PLAY_PACKAGE=io.github.walicard56.twa PLAY_SKU=folego_premium_mensal
+       npx supabase secrets set PLAY_PACKAGE=io.github.walicard56.twa PLAY_SKUS=folego_premium_mensal,folego_premium_anual
        npx supabase secrets set GOOGLE_SERVICE_ACCOUNT="$(cat caminho/da/chave.json)"
        npx supabase functions deploy verify-purchase
        npx supabase functions deploy delete-account
@@ -152,6 +173,18 @@ PASSO 6 — FICHA DA LOJA E PUBLICAÇÃO
   - Conta pessoal criada após 13/11/2023: teste fechado com 12 testadores
     por 14 dias antes de liberar produção.
   - Depois: Produção > enviar para revisão.
+
+
+TESTES AUTOMÁTICOS
+------------------
+  A cada push, o GitHub roda os testes (aba Actions > "Testes").
+  Para rodar no computador: npm install && npx playwright install chromium
+  && npm test
+
+TEXTOS DA LOJA
+--------------
+  Nome, descrições, roteiro das capturas de tela e respostas prontas para
+  avaliações estão em loja/ficha-google-play.md
 
 
 OBSERVAÇÕES

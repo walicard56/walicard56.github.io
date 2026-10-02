@@ -128,7 +128,7 @@ function buildDividas(){
     pay.addEventListener('click',()=>{
       if(+d.pagas>=+d.total) return;
       d.pagas=(+d.pagas||0)+1; buildDividas(); updateComputed(true); save(); haptic(15);
-      track('parcela_paga'); if(+d.pagas>=+d.total){ celebrate(); track('divida_quitada'); }
+      track('parcela_paga'); if(+d.pagas>=+d.total){ celebrate(); track('divida_quitada'); maybeAskReview('divida_quitada'); }
     });
     el.append(head,fields,bar,info,pay); box.append(el);
     d._el={bar:bar.firstChild,info,pay};
@@ -278,7 +278,7 @@ function paintReserva(n,animate){
   else nota='Sua sobra média está no vermelho — o foco agora é fechar o mês no azul antes de guardar com folga.';
   document.getElementById('resNota').textContent=nota;
   const bucket=Math.floor((meta>0?atual/meta:0)*4);
-  if(bucket>prevResBucket && bucket>0) celebrate();
+  if(bucket>prevResBucket && bucket>0){ celebrate(); maybeAskReview('meta_reserva'); }
   prevResBucket=bucket;
 }
 function paintDividas(n,animate){
@@ -335,7 +335,8 @@ function switchTab(tab){
   track('aba_aberta',{aba:tab});
 }
 const tabHooks=[];
-document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{haptic(6);switchTab(b.dataset.tab);}));
+document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{
+  haptic(6); if(b.dataset.tab==='hist'&&!requirePremium('historico')) return; switchTab(b.dataset.tab);}));
 document.getElementById('userBtn').addEventListener('click',()=>{haptic(6);switchTab(document.getElementById('view-conta').classList.contains('active')?'mes':'conta');});
 function goMonth(delta){
   const leaving=S.current;
@@ -359,7 +360,7 @@ document.querySelectorAll('[data-add]').forEach(b=>b.addEventListener('click',()
   else if(t==='extra') cur().extras.push({nome:'Renda extra',valor:0});
   else if(t==='fixo') cur().fixos.push({nome:'Novo gasto',valor:0});
   else if(t==='var') cur().variaveis.push({nome:'Novo gasto',valor:0});
-  else if(t==='divida'){S.dividas.push({nome:'Nova dívida',parcela:0,total:12,pagas:0});buildDividas();updateComputed(false);save();return;}
+  else if(t==='divida'){ if(S.dividas.length>=1&&!requirePremium('dividas')) return; S.dividas.push({nome:'Nova dívida',parcela:0,total:12,pagas:0});buildDividas();updateComputed(false);save();return;}
   markTouched(); buildMes();updateComputed(false);save();
 }));
 document.getElementById('reset').addEventListener('click',()=>{if(confirm('Apagar todos os seus lançamentos e recomeçar do zero?')){S=defaults();prevResBucket=0;init();save();toast('Tudo apagado. Vamos recomeçar!');}});
@@ -401,9 +402,64 @@ function toast(msg,actionLabel,action){
 
 /* ---------- sheets (lançamento rápido e configuração inicial) ---------- */
 const scrim=document.getElementById('scrim');
-let openSheetEl=null;
-function openSheet(el){openSheetEl=el; el.classList.add('open'); scrim.classList.add('open');}
-function closeSheet(){if(!openSheetEl)return; if(openSheetEl.id==='setupSheet')return; openSheetEl.classList.remove('open'); scrim.classList.remove('open'); openSheetEl=null;}
+let openSheetEl=null; const sheetCloseHooks=[];
+function openSheet(el){
+  if(openSheetEl&&openSheetEl!==el){ if(openSheetEl.id==='setupSheet') return; openSheetEl.classList.remove('open'); }
+  openSheetEl=el; el.classList.add('open'); scrim.classList.add('open'); el.scrollTop=0; document.body.classList.add('sheet-open');
+}
+function closeSheet(force){
+  if(!openSheetEl)return; if(openSheetEl.id==='setupSheet'&&!force)return;
+  openSheetEl.classList.remove('open'); scrim.classList.remove('open'); openSheetEl=null; document.body.classList.remove('sheet-open');
+  sheetCloseHooks.forEach(f=>f());
+}
+document.querySelectorAll('[data-close-sheet]').forEach(b=>b.addEventListener('click',()=>closeSheet()));
+
+/* ---------- plano (grátis × Premium) ---------- */
+let plan={isPremium:()=>true, openPaywall:()=>{}, sendFeedback:async()=>false, storeUrl:''};
+function requirePremium(feature){ if(plan.isPremium()) return true; haptic([8,30,8]); plan.openPaywall(feature); return false; }
+function refreshPlan(){
+  const prem=plan.isPremium();
+  document.querySelectorAll('[data-premium]').forEach(el=>el.classList.toggle('locked-feature',!prem));
+  const addDiv=document.querySelector('[data-add=divida]');
+  if(addDiv) addDiv.textContent=(!prem&&S.dividas.length>=1)?'+ adicionar dívida ⭐ Premium':'+ adicionar dívida';
+  if(!prem&&document.getElementById('view-hist').classList.contains('active')) switchTab('mes');
+}
+
+/* ---------- pedido de avaliação (em momentos felizes) ---------- */
+(function countUsageDay(){
+  const d=new Date().toISOString().slice(0,10);
+  if(P.lastDay!==d){P.lastDay=d; P.days=(P.days||0)+1; savePrefs();}
+})();
+function maybeAskReview(motivo){
+  if((P.days||0)<3) return;
+  if(P.reviewAt&&Date.now()-P.reviewAt<90*864e5) return;
+  if(openSheetEl) return;
+  P.reviewAt=Date.now(); savePrefs();
+  track('avaliacao_perguntada',{motivo});
+  setTimeout(()=>{renderReview('pergunta'); openSheet(document.getElementById('reviewSheet'));},1600);
+}
+function renderReview(step){
+  const b=document.getElementById('reviewBody');
+  if(step==='pergunta'){
+    b.innerHTML='<div class="pw-head"><div class="gate-logo">💜</div><h3>Está curtindo o Fôlego?</h3></div>'+
+      '<div class="btnrow"><button class="btn-ghost" id="rvMeh">Mais ou menos</button><button class="btn-primary" id="rvYes">Sim, estou! 😄</button></div>';
+    b.querySelector('#rvYes').onclick=()=>{track('avaliacao_gostou');renderReview('loja');};
+    b.querySelector('#rvMeh').onclick=()=>{track('avaliacao_nao_gostou');renderReview('feedback');};
+  }else if(step==='loja'){
+    b.innerHTML='<div class="pw-head"><div class="gate-logo">⭐</div><h3>Que bom! Avalia a gente?</h3><p class="hint">Leva 10 segundos e ajuda muito outras pessoas a encontrarem o app.</p></div>'+
+      '<button class="btn-big" id="rvStore">Avaliar na Play Store</button><button class="btn-link" data-close-sheet>Agora não</button>';
+    b.querySelector('#rvStore').onclick=()=>{track('avaliacao_loja_aberta'); if(plan.storeUrl) window.open(plan.storeUrl,'_blank','noopener'); closeSheet();};
+  }else{
+    b.innerHTML='<div class="pw-head"><div class="gate-logo">🛠️</div><h3>O que podemos melhorar?</h3><p class="hint">Sua opinião vai direto para quem faz o app.</p></div>'+
+      '<textarea class="field-in" id="rvText" rows="4" maxlength="2000" placeholder="Conta pra gente…"></textarea>'+
+      '<button class="btn-big" id="rvSend">Enviar</button><button class="btn-link" data-close-sheet>Agora não</button>';
+    b.querySelector('#rvSend').onclick=async()=>{
+      const t=b.querySelector('#rvText').value.trim(); if(!t){b.querySelector('#rvText').focus();return;}
+      await plan.sendFeedback(t,{motivo:'avaliacao'}); closeSheet(); toast('Obrigado! Sua opinião foi enviada 💜');
+    };
+  }
+  b.querySelectorAll('[data-close-sheet]').forEach(x=>x.onclick=()=>closeSheet());
+}
 scrim.addEventListener('click',closeSheet);
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSheet();});
 
@@ -435,6 +491,7 @@ function quickSave(){
   const m=cur(); const list=qType==='extra'?m.extras:m.variaveis;
   const item={nome:nome||(qType==='extra'?'Renda extra':'Gasto do dia'),valor:v};
   list.push(item); markTouched(); buildMes(); updateComputed(true); save(); closeSheet(); haptic(15);
+  P.launches=(P.launches||0)+1; savePrefs(); if(P.launches===8) maybeAskReview('lancamentos');
   toast((qType==='extra'?'Renda de ':'Gasto de ')+money(v)+' lançado','Desfazer',()=>{const i=list.indexOf(item);if(i>-1)list.splice(i,1);buildMes();updateComputed(true);save();});
 }
 document.getElementById('qSave').addEventListener('click',quickSave);
@@ -444,6 +501,7 @@ let onboarded=false;
 function maybeOnboard(){
   if(onboarded||!firstRun) return; onboarded=true;
   const com=document.getElementById('sCom');
+  document.getElementById('sLogin').hidden=!plan.loginAvailable;
   com.addEventListener('change',()=>{document.getElementById('sComBox').hidden=!com.checked;});
   openSheet(document.getElementById('setupSheet'));
 }
@@ -453,10 +511,12 @@ document.getElementById('sGo').addEventListener('click',()=>{
   S.config.comissao=document.getElementById('sCom').checked;
   m.comPrev=parseFloat(document.getElementById('sComVal').value)||0;
   firstRun=false; buildMes(); updateComputed(true); save();
-  const sh=document.getElementById('setupSheet'); sh.classList.remove('open'); scrim.classList.remove('open'); openSheetEl=null;
+  closeSheet(true);
   haptic(15); toast('Pronto! Agora preencha seus gastos fixos 👇');
   track('configuracao_inicial',{comissao:S.config.comissao,informou_salario:sal>0});
 });
+
+document.getElementById('sLogin').addEventListener('click',()=>{closeSheet(true); switchTab('conta'); track('configuracao_pulada_login');});
 
 /* ---------- exportar / importar ---------- */
 function exportData(){
@@ -482,7 +542,8 @@ document.getElementById('importFile').addEventListener('change',e=>{
 
 window.FolegoApp={
   getState:()=>S, replaceState, exportData, toast, haptic, celebrate, switchTab,
-  isFirstRun:()=>firstRun, maybeOnboard,
+  isFirstRun:()=>firstRun, maybeOnboard, openSheet, closeSheet, requirePremium,
+  setPlan:p=>{plan=Object.assign(plan,p);}, refreshPlan, onSheetClose:f=>sheetCloseHooks.push(f),
   wipe:()=>{try{localStorage.removeItem(KEY);}catch(e){} S=defaults();firstRun=true;onboarded=false;prevResBucket=0;init();},
   onSave:f=>saveHooks.push(f), onTab:f=>tabHooks.push(f)
 };

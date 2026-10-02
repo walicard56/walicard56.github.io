@@ -2,11 +2,11 @@
 // Secrets necessários (Supabase > Edge Functions > Secrets):
 //   GOOGLE_SERVICE_ACCOUNT  JSON completo da conta de serviço com acesso ao Play Console
 //   PLAY_PACKAGE            ex.: io.github.walicard56.twa
-//   PLAY_SKU                ex.: folego_premium_mensal
+//   PLAY_SKUS               ex.: folego_premium_mensal,folego_premium_anual
 import { adminClient, cors, json, userFromRequest } from '../_shared/common.ts';
 
 const PKG = Deno.env.get('PLAY_PACKAGE') ?? '';
-const SKU = Deno.env.get('PLAY_SKU') ?? '';
+const SKUS = (Deno.env.get('PLAY_SKUS') ?? Deno.env.get('PLAY_SKU') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
 const API = 'https://androidpublisher.googleapis.com/androidpublisher/v3/applications/' + encodeURIComponent(PKG);
 const ACTIVE_STATES = ['SUBSCRIPTION_STATE_ACTIVE', 'SUBSCRIPTION_STATE_IN_GRACE_PERIOD', 'SUBSCRIPTION_STATE_CANCELED'];
 const DAY = 864e5;
@@ -58,16 +58,16 @@ Deno.serve(async (req) => {
     const { data: stored } = await admin.from('subscriptions').select('purchase_token')
       .eq('user_id', user.id).gt('expires_at', new Date(Date.now() - 60 * DAY).toISOString());
     const tokens = [...new Set([...given, ...(stored ?? []).map((r) => r.purchase_token as string)])];
-    if (!tokens.length) return json({ expires_at: null });
+    if (!tokens.length) return json({ expires_at: null, product_id: null });
 
     const gtoken = await googleAccessToken();
     const auth = { Authorization: 'Bearer ' + gtoken };
-    let best = 0;
+    let best = 0, bestProduct: string | null = null;
     for (const token of tokens) {
       const r = await fetch(API + '/purchases/subscriptionsv2/tokens/' + encodeURIComponent(token), { headers: auth });
       if (!r.ok) continue;
       const sub = await r.json();
-      const item = (sub.lineItems ?? []).find((li: { productId: string }) => li.productId === SKU);
+      const item = (sub.lineItems ?? []).find((li: { productId: string }) => SKUS.includes(li.productId));
       if (!item) continue;
 
       // Uma compra pertence a uma única conta do Fôlego.
@@ -87,9 +87,9 @@ Deno.serve(async (req) => {
           method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: '{}',
         });
       }
-      best = Math.max(best, expiresAt);
+      if (expiresAt > best) { best = expiresAt; bestProduct = item.productId; }
     }
-    return json({ expires_at: best ? new Date(best).toISOString() : null });
+    return json({ expires_at: best ? new Date(best).toISOString() : null, product_id: bestProduct });
   } catch (e) {
     console.error(e);
     return json({ error: 'internal' }, 500);

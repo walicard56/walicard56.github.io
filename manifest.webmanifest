@@ -1,8 +1,8 @@
 {
   "id": "./",
-  "name": "Fôlego — controle do mês",
+  "name": "Fôlego: Renda Variável",
   "short_name": "Fôlego",
-  "description": "Controle financeiro para quem vive de renda variável. Veja quanto sobra, guarde sua reserva e acompanhe dívidas. 7 dias grátis.",
+  "description": "Controle financeiro para comissionados, MEI e autônomos: saiba quanto sobra no mês, monte sua reserva e saia das dívidas.",
   "lang": "pt-BR",
   "dir": "ltr",
   "start_url": "./index.html",

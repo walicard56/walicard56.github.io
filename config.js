@@ -20,11 +20,13 @@ window.FOLEGO_CONFIG = {
   // Dias de uso grátis contados a partir do primeiro login.
   TRIAL_DAYS: 7,
 
-  // Texto do preço exibido antes de a Play Store informar o preço oficial.
-  PRICE_LABEL: 'R$ 9,99/mês',
+  // Preços exibidos antes de a Play Store informar os preços oficiais.
+  PRICE_LABEL: 'R$ 9,99',
+  PRICE_LABEL_ANUAL: 'R$ 79,90',
 
-  // ID do produto de assinatura criado no Play Console (Monetizar > Assinaturas).
+  // IDs das assinaturas criadas no Play Console (Monetizar > Assinaturas).
   PLAY_SKU: 'folego_premium_mensal',
+  PLAY_SKU_ANUAL: 'folego_premium_anual',
 
   // Nome do pacote Android gerado no PWABuilder (ex.: io.github.walicard56.twa).
   PLAY_PACKAGE: 'io.github.walicard56.twa',
