@@ -96,3 +96,28 @@ test('pedido de avaliação aparece em momento feliz e envia feedback', async ({
   await page.click('#rvSend');
   await expect(page.locator('#toast')).toContainText('Obrigado');
 });
+
+test('fora da Play Store e antes da publicação, assinar não abre página inexistente', async ({ page }) => {
+  const server = createServer();
+  await start(page, { server });
+  await page.click('#userBtn');
+  await page.click('#acctLogin #fakeG');
+  await page.click('#aSub');
+  await expect(page.locator('#pwSub')).toHaveText('Assinatura em breve na Google Play');
+  const popup = page.waitForEvent('popup', { timeout: 1500 }).then(() => true).catch(() => false);
+  await page.click('#pwSub');
+  expect(await popup).toBe(false);
+  await expect(page.locator('#toast')).toContainText('chega junto com o app na Google Play');
+});
+
+test('com a loja publicada, assinar pelo navegador abre a página do app', async ({ page }) => {
+  const server = createServer();
+  await start(page, { server, config: { PLAY_STORE_LIVE: true } });
+  await page.click('#userBtn');
+  await page.click('#acctLogin #fakeG');
+  await page.click('#aSub');
+  await expect(page.locator('#pwSub')).toHaveText('Assinar pelo app na Google Play');
+  await page.evaluate(() => { window.__opened = []; window.open = (url) => { window.__opened.push(url); return null; }; });
+  await page.click('#pwSub');
+  expect(await page.evaluate(() => window.__opened)).toEqual(['https://play.google.com/store/apps/details?id=io.github.walicard56.twa']);
+});

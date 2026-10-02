@@ -516,7 +516,8 @@ function renderReview(step){
   if(step==='pergunta'){
     b.innerHTML='<div class="pw-head"><div class="gate-logo">💜</div><h3>Está curtindo o Fôlego?</h3></div>'+
       '<div class="btnrow"><button class="btn-ghost" id="rvMeh">Mais ou menos</button><button class="btn-primary" id="rvYes">Sim, estou! 😄</button></div>';
-    b.querySelector('#rvYes').onclick=()=>{track('avaliacao_gostou');renderReview('loja');};
+    b.querySelector('#rvYes').onclick=()=>{track('avaliacao_gostou');
+      if(plan.storeUrl) renderReview('loja'); else {closeSheet(); toast('Que bom! Obrigado por usar o Fôlego 💜');}};
     b.querySelector('#rvMeh').onclick=()=>{track('avaliacao_nao_gostou');renderReview('feedback');};
   }else if(step==='loja'){
     b.innerHTML='<div class="pw-head"><div class="gate-logo">⭐</div><h3>Que bom! Avalia a gente?</h3><p class="hint">Leva 10 segundos e ajuda muito outras pessoas a encontrarem o app.</p></div>'+

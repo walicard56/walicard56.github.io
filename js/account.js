@@ -11,7 +11,8 @@
 (function(){
   'use strict';
   const C = Object.assign({TRIAL_DAYS:7, PRICE_LABEL:'R$ 9,99', PRICE_LABEL_ANUAL:'R$ 79,90',
-    PLAY_SKU:'', PLAY_SKU_ANUAL:'', PLAY_PACKAGE:''}, window.FOLEGO_CONFIG||{});
+    PLAY_SKU:'', PLAY_SKU_ANUAL:'', PLAY_PACKAGE:'', PLAY_STORE_LIVE:false}, window.FOLEGO_CONFIG||{});
+  const STORE_URL = C.PLAY_STORE_LIVE && C.PLAY_PACKAGE ? 'https://play.google.com/store/apps/details?id=' + encodeURIComponent(C.PLAY_PACKAGE) : '';
   const App = window.FolegoApp;
   const A = window.FolegoAnalytics || {track(){}, identify(){}, reset(){}, captureError(){}};
   const ENABLED = !!(C.GOOGLE_CLIENT_ID && C.SUPABASE_URL && C.SUPABASE_ANON_KEY);
@@ -252,8 +253,9 @@
     if(busy) return;
     if(!user){ openPaywall('assinar'); return; }
     if(!billing){
-      A.track('assinatura_fora_da_play');
-      if(C.PLAY_PACKAGE) window.open('https://play.google.com/store/apps/details?id=' + encodeURIComponent(C.PLAY_PACKAGE), '_blank', 'noopener');
+      A.track('assinatura_fora_da_play', {loja_publicada: !!STORE_URL});
+      if(STORE_URL) window.open(STORE_URL, '_blank', 'noopener');
+      else App.toast('A assinatura chega junto com o app na Google Play. Enquanto isso, aproveite o Premium do seu teste grátis! 💜');
       return;
     }
     busy = true; render(); A.track('assinatura_iniciada', {plano: sku === C.PLAY_SKU_ANUAL ? 'anual' : 'mensal'});
@@ -344,7 +346,7 @@
     }else{
       const anual = chosenSku === C.PLAY_SKU_ANUAL;
       cta = (st === 'trial' ? '<p class="pw-trial">Seu teste grátis termina em <b>' + trialDaysLeft() + ' dia' + (trialDaysLeft()>1?'s':'') + '</b>. Assine para não perder o Premium.</p>' : '') +
-        '<button class="btn-big" id="pwSub"' + (busy?' disabled':'') + '>' + (busy ? 'Abrindo a Play Store…' : (billing ? 'Assinar ' + (anual?'plano anual':'plano mensal') : 'Assinar pelo app na Google Play')) + '</button>' +
+        '<button class="btn-big" id="pwSub"' + (busy?' disabled':'') + '>' + (busy ? 'Abrindo a Play Store…' : (billing ? 'Assinar ' + (anual?'plano anual':'plano mensal') : STORE_URL ? 'Assinar pelo app na Google Play' : 'Assinatura em breve na Google Play')) + '</button>' +
         (billing ? '<button class="btn-link" id="pwRestore">Já assinei — restaurar compra</button>' : '') +
         '<p class="fine">' + esc(prices[chosenSku]) + (anual ? ' por ano' : ' por mês') + ', cobrado pela Google Play. Renova automaticamente; cancele quando quiser em Play Store › Pagamentos e assinaturas.</p>';
     }
@@ -481,7 +483,7 @@
   }
 
   async function boot(){
-    App.setPlan({loginAvailable: ENABLED, isPremium, openPaywall, sendFeedback, storeUrl: C.PLAY_PACKAGE ? 'https://play.google.com/store/apps/details?id=' + encodeURIComponent(C.PLAY_PACKAGE) : ''});
+    App.setPlan({loginAvailable: ENABLED, isPremium, openPaywall, sendFeedback, storeUrl: STORE_URL});
     App.onSave(onLocalSave);
     App.onTab(tab => { if(tab === 'conta') renderAccount(); });
     App.onSheetClose(() => { paywallFeature = null; });

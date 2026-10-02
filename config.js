@@ -31,6 +31,10 @@ window.FOLEGO_CONFIG = {
   // Nome do pacote Android gerado no PWABuilder (ex.: io.github.walicard56.twa).
   PLAY_PACKAGE: 'io.github.walicard56.twa',
 
+  // Mude para true quando o app estiver publicado na Google Play. Antes disso,
+  // os botões de assinar/avaliar não abrem a loja (a página ainda não existe).
+  PLAY_STORE_LIVE: false,
+
   // Lembretes por notificação: chave pública VAPID (veja o LEIA-ME, Passo 5C).
   VAPID_PUBLIC_KEY: '',
 

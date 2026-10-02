@@ -196,6 +196,9 @@ A conversa "Converse com a Lumi" usa a IA Claude, da Anthropic.
 
 
 PASSO 6 — FICHA DA LOJA E PUBLICAÇÃO
+  >> Quando o app for aprovado e estiver público na loja, mude no config.js
+     PLAY_STORE_LIVE para true (libera os links "Assinar pelo app na Google
+     Play" e "Avaliar na Play Store" no navegador).
 ------------------------------------
   - Ícone 512px (icon-512.png), banner 1024x500, 2+ screenshots do celular.
   - Política de privacidade: https://walicard56.github.io/privacy.html
