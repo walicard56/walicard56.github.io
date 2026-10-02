@@ -54,6 +54,12 @@
   .brand .logo{width:28px; height:28px; border-radius:9px; background:linear-gradient(135deg,var(--accent),var(--accent-2)); display:flex; align-items:center; justify-content:center}
   .brand .logo svg{width:16px; height:16px; stroke:#fff; fill:none; stroke-width:2.4}
   .brand h1{font-family:var(--font-num); font-weight:700; font-size:1.1rem; margin:0; letter-spacing:-.01em}
+  .topright{display:flex; align-items:center; gap:8px}
+  .userbtn{width:38px; height:38px; flex:none; border-radius:50%; border:1px solid var(--line); background:var(--surface); color:var(--muted); cursor:pointer; padding:0; display:flex; align-items:center; justify-content:center; overflow:hidden; transition:transform .12s, border-color .15s}
+  .userbtn:active{transform:scale(.92)}
+  .userbtn.on{border-color:var(--accent); color:var(--accent); box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 30%,transparent)}
+  .userbtn svg{width:20px; height:20px; stroke:currentColor; fill:none; stroke-width:1.9}
+  .userbtn img{width:100%; height:100%; object-fit:cover}
   .monthnav{display:flex; align-items:center; gap:2px; background:var(--surface); border:1px solid var(--line); border-radius:11px; padding:3px}
   .monthnav button{border:none; background:transparent; color:var(--ink); width:30px; height:30px; border-radius:8px; cursor:pointer; font-size:1.15rem; transition:background .15s,transform .1s}
   .monthnav button:active{background:var(--surface-2); transform:scale(.92)}
@@ -126,9 +132,6 @@
   .add{margin-top:8px; background:transparent; border:1px dashed var(--line); color:var(--muted); width:100%; padding:9px; border-radius:10px; cursor:pointer; font-family:inherit; font-size:.82rem; transition:all .15s}
   .add:hover{border-color:var(--accent); color:var(--accent)} .add:active{transform:scale(.99)}
 
-  .sim p{color:var(--muted); font-size:.8rem; margin:0 0 10px}
-  .sim .srow{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px}
-  .sim .srow .n{font-family:var(--font-num); font-size:1.5rem; font-weight:700}
   input[type=range]{width:100%; accent-color:var(--accent); height:26px}
 
   .bar{height:12px; border-radius:999px; background:var(--surface-2); overflow:hidden; border:1px solid var(--line)}
@@ -277,10 +280,13 @@
       <span class="logo"><svg viewBox="0 0 24 24"><path d="M4 14c3-6 7-6 8-3s4 3 8-3"/><path d="M4 20h16"/></svg></span>
       <h1 id="viewTitle">Fôlego</h1>
     </div>
-    <div class="monthnav" id="monthnav">
-      <button id="prevM" aria-label="mês anterior">‹</button>
-      <span class="m num" id="monthLabel">—</span>
-      <button id="nextM" aria-label="próximo mês">›</button>
+    <div class="topright">
+      <div class="monthnav" id="monthnav">
+        <button id="prevM" aria-label="mês anterior">‹</button>
+        <span class="m num" id="monthLabel">—</span>
+        <button id="nextM" aria-label="próximo mês">›</button>
+      </div>
+      <button class="userbtn" id="userBtn" aria-label="Conta e configurações"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></button>
     </div>
   </div>
 
@@ -362,12 +368,6 @@
       <button class="add" data-add="var">+ lançar gasto do dia</button>
     </section>
 
-    <section class="sim" id="simSection">
-      <div class="sec-head"><h2>E se a comissão vier fraca?</h2></div>
-      <p>Arraste pra ver a sobra com comissões diferentes.</p>
-      <div class="srow"><span class="num" id="simCom">comissão R$ 0</span><span class="n num" id="simSobra">R$ 0</span></div>
-      <input type="range" id="simRange" min="0" max="4000" step="50" value="2600">
-    </section>
   </div>
 
   <!-- HISTÓRICO -->
@@ -484,7 +484,6 @@
   <button data-tab="hist"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Histórico</button>
   <button data-tab="reserva"><svg viewBox="0 0 24 24"><path d="M12 2l3 6 6 .9-4.5 4.3 1 6.3L12 17l-5.5 2.5 1-6.3L3 8.9 9 8z"/></svg>Reserva</button>
   <button data-tab="dividas"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20M6 15h4"/></svg>Dívidas</button>
-  <button data-tab="conta"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Conta</button>
 </nav>
 
 <script>
@@ -588,14 +587,12 @@ function buildMes(){
   document.getElementById('comPrevNome').value=m.comPrevNome||'Comissão (prevista)';
   document.getElementById('comPrev').value=m.comPrev;
   document.getElementById('comReal').value=m.comReal||'';
-  document.getElementById('simRange').value=Math.min(+m.comPrev||0,4000);
   applyComissao();
 }
 function applyComissao(){
   const on=!!S.config.comissao;
   document.getElementById('toggleCom').checked=on;
   document.getElementById('comissaoBlock').style.display=on?'':'none';
-  document.getElementById('simSection').style.display=on?'':'none';
 }
 
 function buildDividas(){
@@ -719,15 +716,9 @@ function updateComputed(animate){
   document.getElementById('totalFixos').textContent=money(n.fixos);
   document.getElementById('totalVar').textContent=money(n.variaveis);
   document.getElementById('dividaHint').textContent=n.dividasMes>0?('+ '+money(n.dividasMes)+' de parcelas de dívidas (aba Dívidas) já entram na conta do mês.'):'';
-  simPaint(); updateCoach();
+  updateCoach();
   const av=document.getElementById('askVal'); if(av.value) av.dispatchEvent(new Event('input'));
   paintHist(); paintReserva(n,animate); paintDividas(n,animate);
-}
-function simPaint(){
-  const n=monthNumbers(S.current); const c=+document.getElementById('simRange').value;
-  document.getElementById('simCom').textContent='comissão '+money(c);
-  const sobra=n.ganhoFixo+n.extras+c-n.gastos;
-  const el=document.getElementById('simSobra'); el.textContent=money1(sobra); el.className='n num '+(sobra>=0?'pos-text':'neg-text');
 }
 function goToMonth(id){ if(!S.months[id])return; S.current=id;
   document.getElementById('monthLabel').textContent=fmtMonth(id); buildMes(); switchTab('mes'); }
@@ -821,8 +812,9 @@ function switchTab(tab){
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.getElementById('view-'+tab).classList.add('active');
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
-  document.getElementById('viewTitle').textContent={mes:'Fôlego',hist:'Histórico',reserva:'Reserva',dividas:'Dívidas',conta:'Conta'}[tab];
-  document.getElementById('monthnav').style.visibility=(tab==='mes')?'visible':'hidden';
+  document.getElementById('viewTitle').textContent={mes:'Fôlego',hist:'Histórico',reserva:'Reserva',dividas:'Dívidas',conta:'Conta e ajustes'}[tab];
+  document.getElementById('monthnav').style.display=(tab==='mes')?'':'none';
+  document.getElementById('userBtn').classList.toggle('on',tab==='conta');
   document.getElementById('fab').classList.toggle('hide',tab==='conta');
   window.scrollTo(0,0);
   updateComputed(true);
@@ -830,6 +822,7 @@ function switchTab(tab){
 }
 const tabHooks=[];
 document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{haptic(6);switchTab(b.dataset.tab);}));
+document.getElementById('userBtn').addEventListener('click',()=>{haptic(6);switchTab(document.getElementById('view-conta').classList.contains('active')?'mes':'conta');});
 function goMonth(delta){
   const leaving=S.current;
   const target=shiftMonth(S.current,delta);
@@ -844,7 +837,6 @@ document.getElementById('nextM').addEventListener('click',()=>goMonth(1));
 document.getElementById('comPrevNome').addEventListener('input',e=>{cur().comPrevNome=e.target.value;markTouched();save();});
 document.getElementById('comPrev').addEventListener('input',e=>{cur().comPrev=parseFloat(e.target.value)||0;markTouched();updateComputed(false);save();});
 document.getElementById('comReal').addEventListener('input',e=>{cur().comReal=parseFloat(e.target.value)||0;markTouched();updateComputed(false);save();});
-document.getElementById('simRange').addEventListener('input',simPaint);
 document.getElementById('resMeta').addEventListener('input',e=>{S.reserva.meta=parseFloat(e.target.value)||0;updateComputed(false);save();});
 document.getElementById('resAtual').addEventListener('input',e=>{S.reserva.atual=parseFloat(e.target.value)||0;updateComputed(false);save();});
 document.querySelectorAll('[data-add]').forEach(b=>b.addEventListener('click',()=>{

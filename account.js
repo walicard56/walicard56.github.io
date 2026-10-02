@@ -331,8 +331,12 @@
   function renderAccount(){
     const box = $('acctBox'); if(!box) return;
     const st = status();
-    if(st === 'free'){ box.innerHTML = ''; box.hidden = true; return; }
     box.hidden = false;
+    if(st === 'free'){
+      box.innerHTML = '<div class="profile"><span class="pfp">' + USER_SVG + '</span><div><b>Visitante</b><small>Seus dados ficam salvos neste aparelho</small></div></div>' +
+        '<button class="btn-ghost" style="width:100%" disabled>Entrar com Google — em breve</button>';
+      return;
+    }
     if(!user){ box.innerHTML = ''; return; }
     const avatar = user.picture
       ? '<img class="pfp" src="' + esc(user.picture) + '" alt="" referrerpolicy="no-referrer">'
@@ -364,8 +368,25 @@
     on('aRestore', restoreNow);
   }
 
+  const USER_SVG = '<svg viewBox="0 0 24 24" style="width:24px;height:24px;stroke:#fff;fill:none;stroke-width:1.9"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>';
+  let shownPic = null;
+  function renderUserBtn(){
+    const b = $('userBtn'); if(!b) return;
+    const pic = user && user.picture ? user.picture : '';
+    if(pic === shownPic) return;
+    shownPic = pic;
+    if(pic){
+      const img = new Image(); img.alt = ''; img.referrerPolicy = 'no-referrer'; img.src = pic;
+      img.onerror = () => { shownPic = null; b.innerHTML = USER_SVG.replace('stroke:#fff','stroke:currentColor'); };
+      b.innerHTML = ''; b.append(img);
+    }else{
+      b.innerHTML = USER_SVG.replace('stroke:#fff','stroke:currentColor').replace('width:24px;height:24px','width:20px;height:20px');
+    }
+  }
+
   function render(){
     document.documentElement.dataset.plan = status();
+    renderUserBtn();
     renderGate(); renderBanner(); renderAccount();
   }
 
