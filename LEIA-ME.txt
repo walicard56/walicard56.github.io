@@ -7,7 +7,8 @@ Ele já está hospedado no GitHub Pages: https://walicard56.github.io
 Arquivos:
   index.html ............ o app
   config.js ............. *** ÚNICO arquivo que você precisa editar ***
-  account.js ............ login Google, teste grátis, assinatura e backup no Drive
+  account.js ............ login Google, teste grátis, assinatura e sincronização
+  supabase/ ............. banco de dados dos clientes (tabelas + funções do servidor)
   manifest.webmanifest .. identidade do app (nome, ícone, cores)
   sw.js ................. funcionamento offline
   privacy.html / termos.html .. política de privacidade e termos (Google exige)
@@ -15,34 +16,62 @@ Arquivos:
 
 Como funciona a monetização:
   - A pessoa entra com a conta Google  -> ganha 7 dias grátis (sem cartão).
+  - Conta, dados e teste grátis ficam no banco de dados Supabase. O teste é
+    controlado pelo servidor: apagar o app ou a conta não dá teste novo.
   - No fim do teste aparece a tela de assinatura: R$ 9,99/mês pela Google Play.
   - Cobrança, renovação, cancelamento e reembolso: tudo pela Google Play.
-  - Enquanto GOOGLE_CLIENT_ID estiver vazio no config.js, o app fica em
-    "modo livre" (sem login e sem cobrança) — bom para testar o visual.
+  - Enquanto GOOGLE_CLIENT_ID, SUPABASE_URL e SUPABASE_ANON_KEY não estiverem
+    preenchidos no config.js, o app fica em "modo livre" (sem login e sem
+    cobrança) — bom para testar o visual.
 
 
 PASSO 1 — CRIAR O LOGIN COM GOOGLE (grátis)
 -------------------------------------------
   1. Acesse https://console.cloud.google.com e crie um projeto "Folego".
-  2. Menu "APIs e serviços" > "Biblioteca" > ative "Google Drive API".
-  3. "Tela de permissão OAuth" (Google Auth Platform):
+  2. "Tela de permissão OAuth" (Google Auth Platform):
        - Tipo: Externo. Nome: Fôlego. E-mail de suporte: o seu.
        - Domínio autorizado: walicard56.github.io
        - Links: https://walicard56.github.io/privacy.html e /termos.html
-       - Escopos: email, profile, openid e .../auth/drive.appdata
+       - Escopos: apenas email, profile e openid.
        - Publique o app (status "Em produção").
-  4. "Credenciais" > "Criar credenciais" > "ID do cliente OAuth":
+  3. "Credenciais" > "Criar credenciais" > "ID do cliente OAuth":
        - Tipo: Aplicativo da Web
        - Origens JavaScript autorizadas: https://walicard56.github.io
-  5. Copie o ID (termina em .apps.googleusercontent.com) e cole em
-     config.js no campo GOOGLE_CLIENT_ID. Faça commit/push.
+  4. Copie o ID (termina em .apps.googleusercontent.com) e cole em
+     config.js no campo GOOGLE_CLIENT_ID.
+
+
+PASSO 1B — CRIAR O BANCO DE DADOS NO SUPABASE (grátis até 50 mil usuários/mês)
+------------------------------------------------------------------------------
+  1. Crie a conta em https://supabase.com e um projeto "folego"
+     (região: South America (São Paulo)). Guarde a senha do banco.
+  2. SQL Editor > New query > cole TODO o arquivo
+     supabase/migrations/20261002000000_folego_init.sql > Run.
+     Isso cria as tabelas (profiles, user_data, subscriptions, trial_claims)
+     com segurança: cada cliente só enxerga os próprios dados.
+  3. Authentication > Sign In / Providers > Google > Enable:
+       - Client IDs: cole o mesmo GOOGLE_CLIENT_ID do Passo 1
+       - Deixe "Skip nonce checks" DESLIGADO (o app já envia o nonce)
+       - Client Secret pode ficar vazio. Save.
+  4. Project Settings > API (ou "API Keys"): copie
+       - Project URL  -> config.js > SUPABASE_URL
+       - anon / publishable key -> config.js > SUPABASE_ANON_KEY
+     (NUNCA coloque a chave "service_role"/"secret" no site.)
+  5. Faça commit/push do config.js. Pronto: login + banco já funcionam.
+  6. Para ver seus clientes: Table Editor > profiles (quem entrou e quando
+     começou o teste) e subscriptions (quem assina e até quando).
+
+  As funções do servidor (validar assinatura e excluir conta) são instaladas
+  no Passo 5B, depois de criar o app no Play Console.
 
 
 PASSO 2 — TESTAR NO CELULAR
 ---------------------------
 Abra https://walicard56.github.io no Chrome do Android. Deve aparecer a
-tela "Continuar com o Google". Entre, confira a aba "Conta" (dias de teste,
-backup no Drive) e instale pelo menu (⋮) > "Instalar app".
+tela "Continuar com o Google". Entre, toque no ícone de usuário (canto
+superior direito) e confira os dias de teste e "Sincronizado". No Supabase,
+em Table Editor > profiles, seu usuário deve aparecer. Instale pelo menu
+(⋮) > "Instalar app".
 
 
 PASSO 3 — CONTA DE DESENVOLVEDOR E PERFIL DE PAGAMENTOS
@@ -83,26 +112,54 @@ PASSO 5 — CRIAR O APP E A ASSINATURA NO PLAY CONSOLE
      compra sem ser cobrado.
 
 
+PASSO 5B — LIGAR A VALIDAÇÃO DE ASSINATURA (Supabase + Google Play)
+-------------------------------------------------------------------
+A função verify-purchase confirma cada compra direto na Google Play,
+grava em "subscriptions" e confirma (acknowledge) a compra — sem isso a
+Google reembolsa a compra em 3 dias.
+  1. Google Cloud Console (mesmo projeto) > Biblioteca > ative
+     "Google Play Android Developer API".
+  2. IAM > Contas de serviço > Criar: "folego-play". Depois, em Chaves >
+     Adicionar chave > JSON. Baixe o arquivo (é secreto, não suba no GitHub).
+  3. Play Console > Usuários e permissões > Convidar usuário: e-mail da
+     conta de serviço. Permissões do app Fôlego: "Ver dados financeiros" e
+     "Gerenciar pedidos e assinaturas".
+  4. Instale as funções. No computador, com Node instalado:
+       npx supabase login
+       npx supabase link --project-ref SEU_PROJECT_REF
+       npx supabase secrets set PLAY_PACKAGE=io.github.walicard56.twa PLAY_SKU=folego_premium_mensal
+       npx supabase secrets set GOOGLE_SERVICE_ACCOUNT="$(cat caminho/da/chave.json)"
+       npx supabase functions deploy verify-purchase
+       npx supabase functions deploy delete-account
+     (SEU_PROJECT_REF é o código na URL do projeto: https://SEU_PROJECT_REF.supabase.co)
+  5. Teste: com seu Gmail em "Teste de licença", assine no app instalado.
+     A linha deve aparecer em Table Editor > subscriptions.
+
+
 PASSO 6 — FICHA DA LOJA E PUBLICAÇÃO
 ------------------------------------
   - Ícone 512px (icon-512.png), banner 1024x500, 2+ screenshots do celular.
   - Política de privacidade: https://walicard56.github.io/privacy.html
-  - "Segurança dos dados": declare nome, e-mail e ID (coletados para
-    "Gerenciamento da conta"), dados financeiros armazenados apenas no
-    aparelho / Drive do usuário, criptografados em trânsito, com opção de
-    exclusão (Conta > Excluir conta).
-  - "Exclusão de conta": informe o caminho no app e o link da política.
+  - "Segurança dos dados": declare COLETADOS (não compartilhados):
+      * Informações pessoais: nome, e-mail, IDs do usuário — "Gerenciamento
+        da conta" e "Funcionalidade do app"
+      * Informações financeiras: "Outras informações financeiras" (ganhos e
+        gastos digitados) e "Histórico de compras" — "Funcionalidade do app"
+      * Criptografados em trânsito: Sim. Usuário pode pedir exclusão: Sim.
+  - "Exclusão de conta": no app (ícone de usuário > Excluir conta) e link
+    https://walicard56.github.io/privacy.html
   - Classificação de conteúdo, público-alvo (18+), sem anúncios.
   - Conta pessoal criada após 13/11/2023: teste fechado com 12 testadores
     por 14 dias antes de liberar produção.
   - Depois: Produção > enviar para revisão.
 
 
-LIMITAÇÕES CONHECIDAS (versão sem servidor)
--------------------------------------------
-  - O teste grátis é controlado no aparelho. Quem apagar os dados do app
-    pode ganhar um novo teste (o backup no Drive guarda a data original).
-    Para controle total, o próximo passo é um servidor (ex.: Firebase) que
-    registre o teste por conta e valide as compras na API da Google Play.
+OBSERVAÇÕES
+-----------
   - A assinatura só pode ser comprada no app instalado pela Play Store
     (exigência do Google). No navegador aparece o link para a loja.
+  - Renovações e cancelamentos são conferidos toda vez que o app abre.
+    Melhoria futura: notificações em tempo real da Google Play (RTDN).
+  - Plano gratuito do Supabase pausa o projeto após 7 dias sem nenhum
+    acesso. Com clientes usando, isso não acontece; se quiser garantia,
+    o plano Pro custa US$ 25/mês.

@@ -1,6 +1,6 @@
-const CACHE = 'folego-v2';
+const CACHE = 'folego-v3';
 const ASSETS = ['./', './index.html', './config.js', './account.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './privacy.html', './termos.html'];
-const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
+const STATIC_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com', 'cdn.jsdelivr.net'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
@@ -24,12 +24,12 @@ self.addEventListener('fetch', e => {
   if(req.method !== 'GET') return;
   const url = new URL(req.url);
 
-  // Fontes: cache primeiro.
-  if(FONT_HOSTS.includes(url.hostname)){
+  // Fontes e bibliotecas com versão fixa: cache primeiro.
+  if(STATIC_HOSTS.includes(url.hostname)){
     e.respondWith(caches.match(req).then(hit => hit || fetch(req).then(res => put(req, res))));
     return;
   }
-  // Login Google, Drive, Play etc.: sempre rede, nunca cache.
+  // Login Google, Supabase, Play etc.: sempre rede, nunca cache.
   if(url.origin !== self.location.origin) return;
 
   // Arquivos do app: rede primeiro (pega atualizações), cache se estiver offline.

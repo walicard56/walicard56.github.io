@@ -1,18 +1,17 @@
 /*
- * Fôlego — conta Google, teste grátis, assinatura (Google Play Billing) e backup no Drive.
+ * Fôlego — conta Google + Supabase (banco de dados dos clientes), teste grátis,
+ * assinatura (Google Play Billing) e sincronização dos dados na nuvem.
  * Depende de config.js (window.FOLEGO_CONFIG) e do app (window.FolegoApp) carregados antes.
  */
 (function(){
   'use strict';
-  const C = Object.assign({TRIAL_DAYS:7, PRICE_LABEL:'R$ 9,99/mês', PLAY_SKU:'', PLAY_PACKAGE:'', DRIVE_BACKUP:true}, window.FOLEGO_CONFIG||{});
+  const C = Object.assign({TRIAL_DAYS:7, PRICE_LABEL:'R$ 9,99/mês', PLAY_SKU:'', PLAY_PACKAGE:''}, window.FOLEGO_CONFIG||{});
   const App = window.FolegoApp;
-  const ENABLED = !!C.GOOGLE_CLIENT_ID;
+  const ENABLED = !!(C.GOOGLE_CLIENT_ID && C.SUPABASE_URL && C.SUPABASE_ANON_KEY);
   const DAY = 864e5;
   const PLAY_METHOD = 'https://play.google.com/billing';
-  const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
-  const BACKUP_NAME = 'folego-backup.json';
-  const USER_KEY = 'folego-user', PREM_KEY = 'folego-premium', SYNC_KEY = 'folego-last-backup';
-  const PREMIUM_OFFLINE_GRACE = 3*DAY; // quanto tempo confiar na última verificação sem a Play Store
+  const SUPABASE_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.min.js';
+  const USER_KEY = 'folego-user', PROFILE_KEY = 'folego-profile', PREM_KEY = 'folego-premium', SYNC_KEY = 'folego-sync';
 
   const store = {
     get(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } },
@@ -22,30 +21,23 @@
   const $ = id => document.getElementById(id);
   const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-  let user = store.get(USER_KEY);          // {sub,email,name,picture}
-  let premium = store.get(PREM_KEY);       // {active,checkedAt,sku}
+  let sb = null;                           // cliente Supabase
+  let user = store.get(USER_KEY);          // {id,email,name,fullName,picture} — cópia local p/ abrir offline
   let price = C.PRICE_LABEL;
   let billing = null;                      // Digital Goods service (só dentro do app da Play Store)
   let gsiState = 'loading';                // loading | ready | error
-  let gateStep = null;                     // null | 'restore'
-  let busy = false;
+  let busy = false, signingIn = false, syncing = false;
+  let rawNonce = '';                       // nonce do login (o Google recebe o hash; o Supabase confere)
 
   /* ---------- estado do plano ---------- */
-  const trialKey = () => 'folego-trial-' + user.sub;
   function trialStart(){
-    if(!user) return null;
-    let t = store.get(trialKey());
-    if(!t){ t = Date.now(); store.set(trialKey(), t); }
-    return t;
+    const p = store.get(PROFILE_KEY);
+    return p && user && p.uid === user.id ? p.trialStartedAt : Date.now();
   }
-  function trialDaysLeft(){
-    const t = trialStart(); if(!t) return 0;
-    return Math.max(0, Math.ceil((t + C.TRIAL_DAYS*DAY - Date.now()) / DAY));
-  }
+  const trialDaysLeft = () => Math.max(0, Math.ceil((trialStart() + C.TRIAL_DAYS*DAY - Date.now()) / DAY));
   function premiumActive(){
-    if(!premium || !premium.active) return false;
-    if(billing) return true; // verificado agora há pouco na Play Store
-    return Date.now() - (premium.checkedAt||0) < PREMIUM_OFFLINE_GRACE;
+    const p = store.get(PREM_KEY);
+    return !!(p && user && p.uid === user.id && p.expiresAt > Date.now());
   }
   function status(){
     if(!ENABLED) return 'free';
@@ -53,39 +45,61 @@
     if(premiumActive()) return 'premium';
     return trialDaysLeft() > 0 ? 'trial' : 'expired';
   }
-  function setPremium(active){
-    premium = {active:!!active, checkedAt:Date.now(), sku:C.PLAY_SKU};
-    store.set(PREM_KEY, premium);
+  function setPremium(expiresAt){
+    if(!user) return;
+    store.set(PREM_KEY, {uid:user.id, expiresAt: expiresAt ? Date.parse(expiresAt) : 0});
   }
 
-  /* ---------- Google Sign-In ---------- */
+  /* ---------- carregamento ---------- */
   function loadScript(src){
     return new Promise((res, rej) => {
-      const s = document.createElement('script'); s.src = src; s.async = true; s.defer = true;
+      const s = document.createElement('script'); s.src = src; s.async = true;
       s.onload = res; s.onerror = rej; document.head.append(s);
     });
   }
-  function decodeJwt(t){
-    const b = t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
-    const bin = atob(b + '==='.slice((b.length+3)%4));
-    const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
-    return JSON.parse(new TextDecoder().decode(bytes));
+  async function initSupabase(){
+    await loadScript(SUPABASE_JS);
+    sb = window.supabase.createClient(C.SUPABASE_URL, C.SUPABASE_ANON_KEY, {
+      auth: {persistSession:true, autoRefreshToken:true, detectSessionInUrl:false, storageKey:'folego-auth'}
+    });
   }
-  function onCredential(resp){
+  function setUser(u){
+    const m = u.user_metadata || {};
+    user = {id:u.id, email:u.email, name:m.given_name || (m.full_name||m.name||u.email||'').split(' ')[0],
+            fullName:m.full_name||m.name||'', picture:m.avatar_url||m.picture||''};
+    store.set(USER_KEY, user);
+  }
+  function clearLocalAccount(){
+    user = null;
+    [USER_KEY, PROFILE_KEY, PREM_KEY, SYNC_KEY].forEach(store.del);
+  }
+
+  /* ---------- perfil e teste grátis (vem do servidor) ---------- */
+  async function loadProfile(){
+    const {data, error} = await sb.from('profiles').select('trial_started_at').eq('id', user.id).maybeSingle();
+    if(error) throw error;
+    if(data) store.set(PROFILE_KEY, {uid:user.id, trialStartedAt: Date.parse(data.trial_started_at)});
+  }
+
+  /* ---------- Google Sign-In → Supabase Auth ---------- */
+  async function onCredential(resp){
+    if(!sb){ App.toast('Sem conexão. Verifique a internet e tente de novo.'); return; }
+    signingIn = true; render();
     try{
-      const p = decodeJwt(resp.credential);
-      if(p.aud !== C.GOOGLE_CLIENT_ID) throw new Error('aud');
-      user = {sub:p.sub, email:p.email, name:p.given_name||p.name||p.email, fullName:p.name||'', picture:p.picture||''};
-      store.set(USER_KEY, user);
-      trialStart();
+      const {data, error} = await sb.auth.signInWithIdToken({provider:'google', token: resp.credential, nonce: rawNonce});
+      if(error) throw error;
+      setUser(data.user);
+      await loadProfile().catch(()=>{});
       App.haptic(15);
-      gateStep = (App.isFirstRun() && C.DRIVE_BACKUP) ? 'restore' : null;
-      render();
-      if(!gateStep) afterAccess();
-    }catch(e){ App.toast('Não foi possível entrar. Tente de novo.'); }
+      await afterSignedIn();
+    }catch(e){
+      console.error(e);
+      App.toast('Não foi possível entrar. Tente de novo.');
+    }finally{ signingIn = false; render(); }
   }
   function renderGoogleButton(el){
     if(!el) return;
+    if(signingIn){ el.innerHTML = '<div class="spinner" aria-label="entrando"></div>'; return; }
     if(gsiState === 'ready'){
       el.innerHTML = '';
       google.accounts.id.renderButton(el, {theme:'filled_black', size:'large', shape:'pill', text:'continue_with', locale:'pt-BR', width:280});
@@ -98,8 +112,11 @@
   async function initGsi(){
     try{
       await loadScript('https://accounts.google.com/gsi/client');
+      rawNonce = Array.from(crypto.getRandomValues(new Uint8Array(24)), b => b.toString(16).padStart(2,'0')).join('');
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rawNonce));
+      const hashedNonce = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2,'0')).join('');
       google.accounts.id.initialize({
-        client_id: C.GOOGLE_CLIENT_ID, callback: onCredential,
+        client_id: C.GOOGLE_CLIENT_ID, callback: onCredential, nonce: hashedNonce,
         auto_select: true, cancel_on_tap_outside: false, use_fedcm_for_prompt: true
       });
       gsiState = 'ready';
@@ -107,34 +124,108 @@
     }catch(e){ gsiState = 'error'; }
     renderGoogleButton($('gsiBtn'));
   }
-  function signOut(){
-    if(!confirm('Sair da conta? Seus dados continuam salvos neste aparelho.')) return;
+  async function signOut(){
+    if(!confirm('Sair da conta? Seus dados ficam guardados na nuvem e voltam quando você entrar de novo.')) return;
+    try{ await pushNow(); }
+    catch(e){ if(!confirm('Não deu para salvar as últimas alterações na nuvem (sem internet?). Sair mesmo assim e perder essas alterações?')) return; }
+    try{ await sb.auth.signOut(); }catch(e){}
     try{ google.accounts.id.disableAutoSelect(); }catch(e){}
-    if(token){ try{ google.accounts.oauth2.revoke(token, ()=>{}); }catch(e){} }
-    token = null; tokenExp = 0; user = null; store.del(USER_KEY);
+    clearLocalAccount(); App.wipe(); render();
+  }
+  async function deleteAccount(){
+    if(!confirm('Excluir sua conta do Fôlego? Isso apaga TODOS os seus dados da nuvem e deste aparelho. Não dá para desfazer.\n\nSe você assina o Premium, cancele também na Play Store.')) return;
+    try{
+      const {error} = await sb.functions.invoke('delete-account', {body:{}});
+      if(error) throw error;
+    }catch(e){ App.toast('Não foi possível excluir agora. Verifique a internet.'); return; }
+    try{ await sb.auth.signOut({scope:'local'}); }catch(e){}
+    try{ google.accounts.id.disableAutoSelect(); }catch(e){}
+    clearLocalAccount(); App.wipe();
+    App.toast('Conta e dados excluídos.');
     render();
   }
 
-  /* ---------- Google Play Billing (Digital Goods API + Payment Request) ---------- */
+  /* ---------- sincronização dos dados (tabela user_data) ---------- */
+  const syncInfo = () => store.get(SYNC_KEY) || {};
+  let pushTimer = null;
+  async function pushNow(){
+    if(!sb || !user) return;
+    const s = syncInfo();
+    if(s.uid === user.id && !s.dirty) return;
+    syncing = true; renderAccount();
+    try{
+      const {data, error} = await sb.from('user_data')
+        .upsert({user_id:user.id, state:App.getState()}).select('updated_at').single();
+      if(error) throw error;
+      store.set(SYNC_KEY, {uid:user.id, syncedAt:Date.parse(data.updated_at), dirty:false});
+    }finally{ syncing = false; renderAccount(); }
+  }
+  function applyRemote(remote){
+    store.set(SYNC_KEY, {uid:user.id, syncedAt:Date.parse(remote.updated_at), dirty:false});
+    App.replaceState(remote.state); // recarrega a página
+  }
+  /** Reconcilia aparelho × nuvem. Retorna true se a página vai recarregar. */
+  async function reconcile(){
+    const {data:remote, error} = await sb.from('user_data').select('state,updated_at').eq('user_id', user.id).maybeSingle();
+    if(error) throw error;
+    const s = syncInfo();
+    if(!remote){
+      if(!App.isFirstRun()){ store.set(SYNC_KEY, Object.assign(s, {uid:user.id, dirty:true})); await pushNow(); }
+      return false;
+    }
+    const remoteAt = Date.parse(remote.updated_at);
+    if(App.isFirstRun()){ applyRemote(remote); return true; }
+    if(s.uid !== user.id){
+      if(confirm('Encontramos dados salvos na sua conta.\n\nOK = usar os dados da nuvem\nCancelar = manter os deste aparelho (e enviar para a nuvem)')){ applyRemote(remote); return true; }
+      store.set(SYNC_KEY, {uid:user.id, dirty:true}); await pushNow(); return false;
+    }
+    if(s.dirty){
+      if(remoteAt > (s.syncedAt||0) && remoteAt > (s.modifiedAt||0)){ applyRemote(remote); return true; }
+      await pushNow(); return false;
+    }
+    if(remoteAt > (s.syncedAt||0)){ applyRemote(remote); return true; }
+    return false;
+  }
+  function onLocalSave(){
+    if(!ENABLED || !user) return;
+    const s = syncInfo();
+    store.set(SYNC_KEY, Object.assign(s, {uid:user.id, dirty:true, modifiedAt:Date.now()}));
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(() => pushNow().catch(()=>{}), 2500);
+  }
+
+  /* ---------- Google Play Billing + validação no servidor ---------- */
   async function initBilling(){
     if(!('getDigitalGoodsService' in window)) return;
-    try{ billing = await window.getDigitalGoodsService(PLAY_METHOD); }catch(e){ billing = null; return; }
+    try{ billing = await window.getDigitalGoodsService(PLAY_METHOD); }catch(e){ billing = null; }
     if(!billing) return;
     try{
       const [item] = await billing.getDetails([C.PLAY_SKU]);
       if(item && item.price){
-        const p = new Intl.NumberFormat('pt-BR', {style:'currency', currency:item.price.currency}).format(+item.price.value);
-        price = p + '/mês';
+        price = new Intl.NumberFormat('pt-BR', {style:'currency', currency:item.price.currency}).format(+item.price.value) + '/mês';
       }
     }catch(e){}
-    await refreshPurchases();
+    render();
   }
-  async function refreshPurchases(){
-    if(!billing) return;
+  async function playTokens(){
+    if(!billing) return [];
+    try{ return (await billing.listPurchases()).filter(p => p.itemId === C.PLAY_SKU).map(p => p.purchaseToken); }
+    catch(e){ return []; }
+  }
+  /** Revalida a assinatura na Google Play (via função do Supabase) e atualiza o cache. */
+  async function refreshPremium(extraTokens){
+    if(!sb || !user) return;
+    const tokens = (extraTokens||[]).concat(await playTokens());
     try{
-      const list = await billing.listPurchases();
-      setPremium(list.some(p => p.itemId === C.PLAY_SKU));
-    }catch(e){}
+      const {data, error} = await sb.functions.invoke('verify-purchase', {body:{purchaseTokens:tokens}});
+      if(error) throw error;
+      setPremium(data && data.expires_at);
+    }catch(e){
+      try{
+        const {data} = await sb.from('subscriptions').select('expires_at').eq('user_id', user.id).order('expires_at', {ascending:false}).limit(1);
+        if(data) setPremium(data[0] && data[0].expires_at);
+      }catch(e2){}
+    }
     render();
   }
   async function subscribe(){
@@ -150,131 +241,37 @@
         {total: {label: 'Total', amount: {currency: 'BRL', value: '0'}}}
       );
       const resp = await req.show();
+      const token = resp.details && resp.details.purchaseToken;
       await resp.complete('success');
-      setPremium(true);
       App.haptic([20,40,20]); App.celebrate();
       App.toast('Assinatura ativa. Obrigado por apoiar o Fôlego! 💜');
-      refreshPurchases();
+      await refreshPremium(token ? [token] : []);
+      // Se o servidor ainda não confirmou (sem internet etc.), libera por 1 dia e revalida depois.
+      if(!premiumActive()) setPremium(new Date(Date.now() + DAY).toISOString());
     }catch(e){
       if(e && e.name !== 'AbortError') App.toast('A compra não foi concluída.');
     }finally{ busy = false; render(); }
   }
-  function manageUrl(){
-    return 'https://play.google.com/store/account/subscriptions?sku=' + encodeURIComponent(C.PLAY_SKU) + '&package=' + encodeURIComponent(C.PLAY_PACKAGE);
-  }
-
-  /* ---------- Backup no Google Drive (pasta oculta do app) ---------- */
-  let token = null, tokenExp = 0, tokenClient = null, fileId = null, syncTimer = null;
-  const tokenValid = () => token && Date.now() < tokenExp - 60e3;
-  function getToken(){
-    return new Promise((resolve, reject) => {
-      if(tokenValid()) return resolve(token);
-      if(gsiState !== 'ready') return reject(new Error('offline'));
-      if(!tokenClient){
-        tokenClient = google.accounts.oauth2.initTokenClient({client_id: C.GOOGLE_CLIENT_ID, scope: DRIVE_SCOPE, callback: ()=>{}});
-      }
-      tokenClient.callback = r => {
-        if(r.error) return reject(r);
-        token = r.access_token; tokenExp = Date.now() + (r.expires_in||3600)*1000; resolve(token);
-      };
-      tokenClient.error_callback = reject;
-      tokenClient.requestAccessToken({prompt: '', hint: user && user.email});
-    });
-  }
-  async function drive(path, opts){
-    const t = await getToken();
-    const res = await fetch('https://www.googleapis.com' + path, Object.assign({cache:'no-store'}, opts, {headers: Object.assign({Authorization:'Bearer '+t}, (opts&&opts.headers)||{})}));
-    if(!res.ok) throw new Error('drive ' + res.status);
-    return res;
-  }
-  async function findBackup(){
-    if(fileId) return fileId;
-    const q = encodeURIComponent("name='" + BACKUP_NAME + "'");
-    const r = await (await drive('/drive/v3/files?spaces=appDataFolder&fields=files(id,modifiedTime)&q=' + q)).json();
-    fileId = r.files && r.files[0] ? r.files[0].id : null;
-    return fileId;
-  }
-  async function backupNow(silent){
-    const payload = JSON.stringify({app:'folego', v:1, savedAt:new Date().toISOString(), trialStart: user ? store.get(trialKey()) : null, state: App.getState()});
-    const id = await findBackup();
-    if(id){
-      await drive('/upload/drive/v3/files/' + id + '?uploadType=media', {method:'PATCH', headers:{'Content-Type':'application/json'}, body:payload});
-    }else{
-      const boundary = 'folego' + Date.now();
-      const body = '--' + boundary + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' +
-        JSON.stringify({name: BACKUP_NAME, parents: ['appDataFolder']}) +
-        '\r\n--' + boundary + '\r\nContent-Type: application/json\r\n\r\n' + payload + '\r\n--' + boundary + '--';
-      const r = await (await drive('/upload/drive/v3/files?uploadType=multipart&fields=id', {method:'POST', headers:{'Content-Type':'multipart/related; boundary=' + boundary}, body})).json();
-      fileId = r.id;
-    }
-    store.set(SYNC_KEY, Date.now());
-    if(!silent) App.toast('Backup salvo no seu Google Drive ☁️');
-    renderAccount();
-  }
-  async function readBackup(){
-    const id = await findBackup();
-    if(!id) return null;
-    return (await drive('/drive/v3/files/' + id + '?alt=media')).json();
-  }
-  function applyBackup(data){
-    if(!data || !data.state) return false;
-    if(user && data.trialStart){
-      const local = store.get(trialKey());
-      store.set(trialKey(), local ? Math.min(local, data.trialStart) : data.trialStart);
-    }
-    App.replaceState(data.state);
-    return true;
-  }
-  async function restoreNow(){
-    if(!confirm('Substituir os dados deste aparelho pelo backup do Google Drive?')) return;
-    try{
-      const data = await readBackup();
-      if(applyBackup(data)) App.toast('Dados restaurados do Drive ✅');
-      else App.toast('Nenhum backup encontrado nesta conta.');
-    }catch(e){ App.toast('Não foi possível acessar o Drive.'); }
-    render();
-  }
-  function scheduleAutoBackup(){
-    if(!ENABLED || !C.DRIVE_BACKUP || !user || !tokenValid()) return;
-    clearTimeout(syncTimer);
-    syncTimer = setTimeout(() => backupNow(true).catch(()=>{}), 8000);
-  }
-  async function deleteEverything(){
-    if(!confirm('Excluir sua conta do Fôlego? Isso apaga TODOS os dados deste aparelho e o backup do Google Drive. Não dá para desfazer.')) return;
-    if(C.DRIVE_BACKUP && gsiState === 'ready'){
-      try{ const id = await findBackup(); if(id) await drive('/drive/v3/files/' + id, {method:'DELETE'}); }catch(e){}
-    }
-    try{ google.accounts.id.disableAutoSelect(); }catch(e){}
-    if(token){ try{ google.accounts.oauth2.revoke(token, ()=>{}); }catch(e){} }
-    token = null; fileId = null; user = null;
-    [USER_KEY, SYNC_KEY].forEach(store.del);
-    App.wipe();
-    App.toast('Conta e dados excluídos.');
-    render();
-  }
+  const manageUrl = () => 'https://play.google.com/store/account/subscriptions?sku=' + encodeURIComponent(C.PLAY_SKU) + '&package=' + encodeURIComponent(C.PLAY_PACKAGE);
 
   /* ---------- interface ---------- */
   const FEATURES = [
     ['📊','Veja quanto sobra no mês, mesmo com renda variável'],
     ['🛟','Monte sua reserva de emergência com metas'],
     ['💳','Acompanhe parcelas e saiba quando quita cada dívida'],
-    ['🤖','Dicas da Lumi, sua assistente financeira']
+    ['☁️','Seus dados salvos na nuvem, em qualquer celular']
   ];
   const featureList = () => '<ul class="feat">' + FEATURES.map(f => '<li><span>'+f[0]+'</span>'+f[1]+'</li>').join('') + '</ul>';
+  const on = (id, fn) => { const el = $(id); if(el) el.addEventListener('click', fn); };
 
   function renderGate(){
     const gate = $('gate'); const st = status();
-    const show = st === 'signedout' || st === 'expired' || gateStep === 'restore';
+    const show = st === 'signedout' || st === 'expired';
     gate.hidden = !show;
     document.body.classList.toggle('locked', show);
     if(!show){ gate.innerHTML = ''; return; }
     let html;
-    if(gateStep === 'restore'){
-      html = '<div class="gate-hero"><div class="gate-logo">☁️</div><h2>Olá, ' + esc(user.name) + '!</h2>' +
-        '<p>Já usou o Fôlego em outro celular? Traga seus dados do Google Drive.</p></div>' +
-        '<button class="btn-big" id="gRestore">Procurar meu backup</button>' +
-        '<button class="btn-link" id="gFresh">Começar do zero</button>';
-    }else if(st === 'signedout'){
+    if(st === 'signedout'){
       html = '<div class="gate-hero"><div class="gate-logo"><svg viewBox="0 0 24 24"><path d="M4 14c3-6 7-6 8-3s4 3 8-3"/><path d="M4 20h16"/></svg></div>' +
         '<h2>Fôlego</h2><p>O controle financeiro de quem vive de renda variável.</p></div>' + featureList() +
         '<div id="gsiBtn" class="gsi"></div>' +
@@ -293,31 +290,20 @@
     }
     gate.innerHTML = '<div class="gate-card">' + html + '</div>';
     renderGoogleButton($('gsiBtn'));
-    const on = (id, fn) => { const el = $(id); if(el) el.addEventListener('click', fn); };
     on('gSub', subscribe);
-    on('gRefresh', async () => { await refreshPurchases(); if(status() !== 'premium') App.toast('Nenhuma assinatura ativa encontrada.'); });
+    on('gRefresh', async () => { await refreshPremium(); if(status() !== 'premium') App.toast('Nenhuma assinatura ativa encontrada.'); });
     on('gExport', App.exportData);
     on('gOut', signOut);
-    on('gFresh', () => { gateStep = null; render(); afterAccess(); });
-    on('gRestore', async () => {
-      try{
-        const data = await readBackup();
-        if(applyBackup(data)) App.toast('Bem-vindo de volta! Dados restaurados ✅');
-        else { App.toast('Nenhum backup encontrado. Vamos começar!'); gateStep = null; render(); afterAccess(); return; }
-      }catch(e){ App.toast('Não foi possível acessar o Drive.'); return; }
-      gateStep = null; render();
-    });
   }
 
   function renderBanner(){
     const b = $('trialBanner'); if(!b) return;
-    const st = status();
-    if(st !== 'trial'){ b.hidden = true; return; }
+    if(status() !== 'trial'){ b.hidden = true; return; }
     const d = trialDaysLeft();
     b.hidden = false;
     b.className = 'trial-banner' + (d <= 2 ? ' urgent' : '');
     b.innerHTML = '<span>⏳ Teste grátis: <b>' + d + ' dia' + (d>1?'s':'') + '</b> restante' + (d>1?'s':'') + '</span><button id="bannerSub">Assinar</button>';
-    $('bannerSub').addEventListener('click', () => App.switchTab('conta'));
+    on('bannerSub', () => App.switchTab('conta'));
   }
 
   function ago(ts){
@@ -327,6 +313,7 @@
     const h = Math.round(m/60); if(h < 24) return 'há ' + h + ' h';
     return new Date(ts).toLocaleDateString('pt-BR');
   }
+  const USER_SVG = '<svg viewBox="0 0 24 24" style="width:24px;height:24px;stroke:#fff;fill:none;stroke-width:1.9"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>';
 
   function renderAccount(){
     const box = $('acctBox'); if(!box) return;
@@ -351,58 +338,86 @@
         '<button class="btn-primary" id="aSub"' + (busy?' disabled':'') + '>Assinar</button></div>' +
         '<div class="bar" style="margin-top:10px"><span style="width:' + pct + '%"></span></div>';
     }
-    let backup = '';
-    if(C.DRIVE_BACKUP){
-      backup = '<div class="sec-head" style="margin-top:16px"><h2>Backup no Google Drive</h2></div>' +
-        '<p class="hint">Último backup: ' + ago(store.get(SYNC_KEY)) + (tokenValid() ? ' · automático ligado' : '') + '</p>' +
-        '<div class="btnrow"><button class="btn-ghost" id="aBackup">☁️ Salvar agora</button><button class="btn-ghost" id="aRestore">Restaurar</button></div>';
-    }
+    const s = syncInfo();
+    const syncTxt = syncing ? 'Sincronizando…'
+      : (s.dirty ? 'Alterações aguardando envio' + (navigator.onLine ? '' : ' (sem internet)') : 'Sincronizado ' + ago(s.syncedAt));
     box.innerHTML = '<div class="profile">' + avatar + '<div><b>' + esc(user.fullName || user.name) + '</b><small>' + esc(user.email) + '</small></div></div>' +
-      plan + backup +
-      '<div class="btnrow" style="margin-top:16px"><button class="btn-ghost" id="aOut">Sair</button><button class="btn-ghost danger" id="aDel">Excluir conta</button></div>';
-    const on = (id, fn) => { const el = $(id); if(el) el.addEventListener('click', fn); };
+      plan +
+      '<div class="setrow" style="margin-top:12px; border-top:none"><span>☁️ ' + syncTxt + '</span><button class="btn-ghost" id="aSync"' + (syncing?' disabled':'') + '>Sincronizar</button></div>' +
+      '<div class="btnrow" style="margin-top:8px"><button class="btn-ghost" id="aOut">Sair</button><button class="btn-ghost danger" id="aDel">Excluir conta</button></div>';
     on('aSub', subscribe);
     on('aOut', signOut);
-    on('aDel', deleteEverything);
-    on('aBackup', () => backupNow(false).catch(() => App.toast('Não foi possível acessar o Drive.')));
-    on('aRestore', restoreNow);
+    on('aDel', deleteAccount);
+    on('aSync', async () => {
+      if(!sb){ App.toast('Sem conexão com a nuvem agora.'); return; }
+      try{ if(!(await reconcile())){ await pushNow(); App.toast('Tudo sincronizado ☁️'); } }
+      catch(e){ App.toast('Sem conexão com a nuvem agora.'); }
+    });
   }
 
-  const USER_SVG = '<svg viewBox="0 0 24 24" style="width:24px;height:24px;stroke:#fff;fill:none;stroke-width:1.9"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>';
   let shownPic = null;
   function renderUserBtn(){
     const b = $('userBtn'); if(!b) return;
     const pic = user && user.picture ? user.picture : '';
     if(pic === shownPic) return;
     shownPic = pic;
+    const icon = () => USER_SVG.replace('stroke:#fff','stroke:currentColor').replace('width:24px;height:24px','width:20px;height:20px');
     if(pic){
       const img = new Image(); img.alt = ''; img.referrerPolicy = 'no-referrer'; img.src = pic;
-      img.onerror = () => { shownPic = null; b.innerHTML = USER_SVG.replace('stroke:#fff','stroke:currentColor'); };
+      img.onerror = () => { b.innerHTML = icon(); };
       b.innerHTML = ''; b.append(img);
     }else{
-      b.innerHTML = USER_SVG.replace('stroke:#fff','stroke:currentColor').replace('width:24px;height:24px','width:20px;height:20px');
+      b.innerHTML = icon();
     }
   }
 
   function render(){
     document.documentElement.dataset.plan = status();
-    renderUserBtn();
-    renderGate(); renderBanner(); renderAccount();
+    renderUserBtn(); renderGate(); renderBanner(); renderAccount();
   }
 
-  function afterAccess(){ App.maybeOnboard(); }
+  /* ---------- fluxo ---------- */
+  async function afterSignedIn(){
+    let reloading = false;
+    try{ reloading = await reconcile(); }catch(e){ console.error(e); }
+    if(reloading) return;
+    render();
+    refreshPremium();
+    if(status() === 'trial' || status() === 'premium') App.maybeOnboard();
+  }
 
-  /* ---------- início ---------- */
-  App.onSave(scheduleAutoBackup);
-  App.onTab(tab => { if(tab === 'conta') renderAccount(); });
-  render();
-  if(ENABLED){
+  async function boot(){
+    App.onSave(onLocalSave);
+    App.onTab(tab => { if(tab === 'conta') renderAccount(); });
+    render();
+    if(!ENABLED){ App.maybeOnboard(); return; }
+
     initGsi();
     initBilling();
-    document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible'){ refreshPurchases(); render(); } });
-    if(status() !== 'signedout' && status() !== 'expired') afterAccess();
-  }else{
-    afterAccess();
+    window.addEventListener('online', () => { if(syncInfo().dirty) pushNow().catch(()=>{}); });
+    document.addEventListener('visibilitychange', () => {
+      if(document.visibilityState === 'hidden' && syncInfo().dirty) pushNow().catch(()=>{});
+      if(document.visibilityState === 'visible' && user && sb) refreshPremium();
+    });
+
+    try{
+      await initSupabase();
+      const {data:{session}} = await sb.auth.getSession();
+      if(session){
+        setUser(session.user);
+        await loadProfile().catch(()=>{});
+        await afterSignedIn();
+      }else if(user){
+        clearLocalAccount(); // sessão expirou ou foi encerrada em outro aparelho
+        render();
+      }
+    }catch(e){
+      // Offline: segue com a última situação conhecida (usuário, teste e assinatura em cache).
+      render();
+      if(status() === 'trial' || status() === 'premium') App.maybeOnboard();
+    }
   }
+
+  boot();
   window.FolegoAccount = {status, subscribe};
 })();
