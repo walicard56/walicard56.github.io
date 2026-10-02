@@ -1,0 +1,58 @@
+FÔLEGO — COMO COLOCAR NA GOOGLE PLAY
+=====================================
+
+Este pacote já é um app instalável (PWA) completo. Siga os 4 passos.
+
+Arquivos desta pasta (NÃO renomeie):
+  index.html .............. o app
+  manifest.webmanifest .... identidade do app (nome, ícone, cores)
+  sw.js ................... funcionamento offline
+  icon-192.png / icon-512.png ... ícones do app
+  privacy.html ............ política de privacidade (o Google exige)
+
+
+PASSO 1 — HOSPEDAR (grátis)
+---------------------------
+O app precisa de um endereço na internet (https). O jeito mais fácil:
+  1. Entre em  https://app.netlify.com/drop
+  2. Arraste ESTA PASTA inteira para a página.
+  3. Em segundos você recebe um link, ex.: https://seu-app.netlify.app
+  (Alternativas gratuitas: GitHub Pages, Vercel, Cloudflare Pages.)
+
+Guarde dois endereços:
+  - o app:      https://seu-app.netlify.app
+  - a privacidade: https://seu-app.netlify.app/privacy.html
+
+
+PASSO 2 — TESTAR NO CELULAR
+---------------------------
+Abra o link do app no Chrome do Android. No menu (⋮) deve aparecer
+"Instalar app" / "Adicionar à tela inicial". Instale e confira se abre
+com ícone próprio, em tela cheia e funcionando sem internet.
+
+
+PASSO 3 — GERAR O PACOTE ANDROID (AAB)
+--------------------------------------
+  1. Entre em  https://www.pwabuilder.com
+  2. Cole o link do app e clique em "Start".
+  3. Ele analisa o PWA. Vá em "Package for stores" > Android.
+  4. Baixe o pacote. Vem um arquivo .aab (é o que a Play Store aceita)
+     e um arquivo de assinatura (signing key) — GUARDE a chave em local
+     seguro; você vai precisar dela para TODAS as atualizações futuras.
+
+
+PASSO 4 — PUBLICAR NO GOOGLE PLAY
+---------------------------------
+  1. Crie a conta em  https://play.google.com/console  (taxa única US$ 25).
+  2. Faça a verificação de identidade (documento + cartão no seu nome).
+  3. "Criar app" > preencha nome (Fôlego), idioma, tipo (app, gratuito).
+  4. Envie o arquivo .aab em um TESTE FECHADO primeiro.
+     - Conta pessoal criada após 13/11/2023 precisa de ~12 testadores
+       rodando o app por 14 dias seguidos antes de liberar em produção.
+  5. Preencha a ficha da loja:
+     - ícone (use o icon-512.png), screenshots do celular, descrição
+     - link da política de privacidade (o /privacy.html do Passo 1)
+     - classificação de conteúdo (responda o questionário)
+  6. Depois do teste, envie para produção e aguarde a revisão (dias).
+
+Pronto. Dúvida em qualquer passo, é só perguntar.
