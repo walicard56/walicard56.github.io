@@ -9,7 +9,7 @@
 window.FOLEGO_CONFIG = {
   // ID do cliente OAuth (tipo "Aplicativo da Web") criado no Google Cloud Console.
   // Ex.: '1234567890-abc123.apps.googleusercontent.com'
-  GOOGLE_CLIENT_ID: '',
+  GOOGLE_CLIENT_ID: '1070702517503-tg7q8ntbbom2sbq8j5b64n4tou1lkii0.apps.googleusercontent.com',
 
   // Supabase (banco de dados dos clientes): Project Settings > API.
   // URL do projeto, ex.: 'https://abcdefgh.supabase.co'
