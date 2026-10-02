@@ -270,6 +270,18 @@ body.sheet-open .toast.show{transform:translate(-50%,0)}
 .toast.show{opacity:1; transform:translate(-50%,0); pointer-events:auto}
 .toast button{background:none; border:none; color:#a596ff; font-family:inherit; font-weight:600; font-size:.85rem; cursor:pointer; padding:0}
 
+/* --- importar extrato --- */
+.imp-list{display:flex; flex-direction:column; max-height:50vh; overflow-y:auto; border:1px solid var(--line); border-radius:12px}
+.imp{display:flex; align-items:center; gap:8px; padding:8px 10px; border-top:1px solid var(--line); cursor:pointer}
+.imp:first-child{border-top:none}
+.imp input{width:18px; height:18px; accent-color:var(--accent); flex:none}
+.imp .catbtn.inc{display:flex; align-items:center; justify-content:center}
+.imp-d{flex:1; min-width:0; font-size:.84rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.imp-d small{display:block; color:var(--muted); font-size:.7rem}
+.imp-v{font-size:.84rem; font-weight:600; white-space:nowrap}
+.imp.dup{opacity:.5}
+.btn-big:disabled{opacity:.5; cursor:default}
+
 /* --- Lumi --- */
 .lumi-open{display:flex; align-items:center; justify-content:center; gap:6px; width:100%; margin-top:10px; border:none; border-radius:11px; padding:10px; background:rgba(255,255,255,.2); color:#fff; font-family:inherit; font-weight:600; font-size:.86rem; cursor:pointer}
 .lumi-open:active{transform:scale(.98)}

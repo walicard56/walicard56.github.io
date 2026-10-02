@@ -1,5 +1,5 @@
-const CACHE = 'folego-v6';
-const ASSETS = ['./', './index.html', './config.js', './css/app.css', './js/analytics.js', './js/categorias.js', './js/app.js', './js/account.js', './js/relatorios.js', './js/inteligencia.js', './js/lembretes.js', './js/lumi.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './privacy.html', './termos.html'];
+const CACHE = 'folego-v7';
+const ASSETS = ['./', './index.html', './config.js', './css/app.css', './js/analytics.js', './js/categorias.js', './js/app.js', './js/account.js', './js/relatorios.js', './js/inteligencia.js', './js/lembretes.js', './js/lumi.js', './js/importar.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './privacy.html', './termos.html'];
 const STATIC_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com', 'cdn.jsdelivr.net'];
 
 self.addEventListener('install', e => {

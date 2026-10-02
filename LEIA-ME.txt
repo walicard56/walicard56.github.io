@@ -213,6 +213,13 @@ PASSO 6 — FICHA DA LOJA E PUBLICAÇÃO
   - Depois: Produção > enviar para revisão.
 
 
+IMPORTAR EXTRATO
+----------------
+Não precisa configurar nada. Em Conta e ajustes > "Importar extrato do
+banco", o usuário Premium escolhe um arquivo OFX (quase todo banco exporta
+no internet banking) ou CSV (ex.: Nubank conta/cartão, Inter). O arquivo é
+lido no próprio celular; nada é enviado a servidor.
+
 TESTES AUTOMÁTICOS
 ------------------
   A cada push, o GitHub roda os testes (aba Actions > "Testes").

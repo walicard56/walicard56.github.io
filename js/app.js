@@ -56,6 +56,15 @@ function fmtMonth(id){const[y,m]=id.split('-');let s=MESES[+m-1];return s.charAt
 function abrevMonth(id){const[y,m]=id.split('-');return MABREV[+m-1]+' '+y.slice(2);}
 function shiftMonth(id,n){let[y,m]=id.split('-').map(Number);m+=n;while(m<1){m+=12;y--;}while(m>12){m-=12;y++;}return y+'-'+String(m).padStart(2,'0');}
 function cur(){return S.months[S.current];}
+/** Garante que o mês exista (copiando ganhos e contas fixas do mês mais próximo) e o marca como usado. */
+function ensureMonth(id){
+  if(!S.months[id]){
+    const ids=Object.keys(S.months).sort(); const near=ids.filter(k=>k<=id).pop()||ids[0]; const b=S.months[near];
+    S.months[id]={ganhos:b.ganhos.map(x=>({...x})),comPrevNome:b.comPrevNome,comPrev:b.comPrev,comReal:0,
+      fixos:b.fixos.map(x=>({...x,pago:id<todayId})),variaveis:[],extras:[],touched:true};
+  }
+  S.months[id].touched=true; return S.months[id];
+}
 function markTouched(){const m=cur(); if(m&&!m.touched){m.touched=true;}}
 
 function monthNumbers(id){
@@ -619,7 +628,7 @@ document.getElementById('importFile').addEventListener('change',e=>{
 window.FolegoApp={
   getState:()=>S, replaceState, exportData, toast, haptic, celebrate, switchTab,
   isFirstRun:()=>firstRun, maybeOnboard, openSheet, closeSheet, requirePremium,
-  cur, monthNumbers, money, money1, fmtMonth, abrevMonth, shiftMonth, todayId, save, markTouched, buildMes, updateComputed,
+  cur, ensureMonth, monthNumbers, money, money1, fmtMonth, abrevMonth, shiftMonth, todayId, save, markTouched, buildMes, updateComputed,
   isPremium:()=>plan.isPremium(), track, openCatPicker,
   onComputed:f=>computedHooks.push(f), onLaunch:f=>launchHooks.push(f),
   setPlan:p=>{plan=Object.assign(plan,p);}, refreshPlan, onSheetClose:f=>sheetCloseHooks.push(f),
