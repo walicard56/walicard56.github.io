@@ -1,5 +1,5 @@
-const CACHE = 'folego-v4';
-const ASSETS = ['./', './index.html', './config.js', './css/app.css', './js/analytics.js', './js/app.js', './js/account.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './privacy.html', './termos.html'];
+const CACHE = 'folego-v5';
+const ASSETS = ['./', './index.html', './config.js', './css/app.css', './js/analytics.js', './js/categorias.js', './js/app.js', './js/account.js', './js/relatorios.js', './js/lembretes.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './privacy.html', './termos.html'];
 const STATIC_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com', 'cdn.jsdelivr.net'];
 
 self.addEventListener('install', e => {
@@ -37,4 +37,23 @@ self.addEventListener('fetch', e => {
     fetch(req).then(res => put(req, res))
       .catch(() => caches.match(req).then(hit => hit || (req.mode === 'navigate' ? caches.match('./index.html') : undefined)))
   );
+});
+
+// Lembretes enviados pelo servidor (função send-reminders).
+self.addEventListener('push', e => {
+  let msg = {};
+  try{ msg = e.data ? e.data.json() : {}; }catch(err){ msg = {title:'Fôlego', body: e.data ? e.data.text() : ''}; }
+  e.waitUntil(self.registration.showNotification(msg.title || 'Fôlego', {
+    body: msg.body || '', tag: msg.tag || 'folego', icon: './icon-192.png', badge: './icon-192.png',
+    data: {url: msg.url || './index.html'}
+  }));
+});
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const url = new URL((e.notification.data && e.notification.data.url) || './index.html', self.registration.scope).href;
+  e.waitUntil(clients.matchAll({type:'window', includeUncontrolled:true}).then(list => {
+    for(const c of list){ if(c.url.startsWith(self.registration.scope) && 'focus' in c){ c.navigate(url); return c.focus(); } }
+    return clients.openWindow(url);
+  }));
 });

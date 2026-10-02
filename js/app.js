@@ -36,9 +36,18 @@ Object.keys(S.months).forEach(id=>{const m=S.months[id];
 if(!Array.isArray(S.dividas)) S.dividas=[];
 if(!S.reserva) S.reserva={meta:4500,atual:0};
 Object.keys(S.months).forEach(id=>{ if(id!==todayId && S.months[id].touched===false) delete S.months[id]; });
+// Virada do mês: cria o mês atual a partir do último (contas fixas voltam a "não pago") e abre nele.
+(function rollover(){
+  const ids=Object.keys(S.months).sort(); const last=ids[ids.length-1];
+  if(!last||S.months[todayId]||last>todayId) return;
+  const b=S.months[last];
+  S.months[todayId]={ganhos:b.ganhos.map(x=>({...x})),comPrevNome:b.comPrevNome,comPrev:b.comPrev,comReal:0,
+    fixos:b.fixos.map(x=>({...x,pago:false})),variaveis:[],extras:[],touched:true};
+  S.current=todayId;
+})();
 if(!S.months[S.current]) S.current=S.months[todayId]?todayId:Object.keys(S.months)[0];
 if(!S.current||!S.months[S.current]){const s=seedMonth();s.touched=true;S.months[todayId]=s;S.current=todayId;}
-const saveHooks=[];
+const saveHooks=[], computedHooks=[], launchHooks=[];
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){} saveHooks.forEach(f=>{try{f();}catch(e){}});}
 
 const money=n=>'R$ '+Math.round(n).toLocaleString('pt-BR');
@@ -74,8 +83,23 @@ function setBig(el,value,animate){
   requestAnimationFrame(step);
 }
 
-function makeRow(item,list,extraClass){
+const Cats=window.FolegoCats;
+const isoToday=()=>{const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
+/** Data padrão para um lançamento no mês aberto: hoje, se for o mês atual; senão o dia 1. */
+const defaultDate=()=>S.current===todayId?isoToday():S.current+'-01';
+function daysInMonth(id){const[y,m]=id.split('-').map(Number); return new Date(y,m,0).getDate();}
+
+function catButton(item,onChange){
+  const b=document.createElement('button'); b.className='catbtn';
+  const paint=()=>{const c=Cats.of(item); b.textContent=c.emoji; b.title=c.nome; b.setAttribute('aria-label','categoria: '+c.nome);};
+  paint();
+  b.addEventListener('click',()=>openCatPicker(Cats.of(item).id,id=>{item.cat=id; paint(); markTouched(); save(); onChange&&onChange();}));
+  return b;
+}
+function makeRow(item,list,extraClass,opts){
+  opts=opts||{};
   const row=document.createElement('div'); row.className='row'+(extraClass?' '+extraClass:'');
+  if(opts.cat) row.append(catButton(item,()=>updateComputed(false)));
   const name=document.createElement('input'); name.className='name'; name.value=item.nome;
   name.addEventListener('input',()=>{item.nome=name.value;markTouched();save();});
   const c=document.createElement('span'); c.className='cur'; c.textContent='R$';
@@ -85,18 +109,56 @@ function makeRow(item,list,extraClass){
   del.setAttribute('aria-label','remover '+item.nome);
   del.addEventListener('click',()=>{const i=list.indexOf(item);if(i<0)return;list.splice(i,1);markTouched();buildMes();updateComputed(true);save();haptic(10);
     toast('“'+(item.nome||'Item')+'” removido','Desfazer',()=>{list.splice(Math.min(i,list.length),0,item);buildMes();updateComputed(true);save();});});
-  row.append(name,c,val,del); return row;
+  row.append(name,c,val,del);
+  if(opts.date||opts.due){
+    const sub=document.createElement('div'); sub.className='row-sub';
+    if(opts.date){
+      const dt=document.createElement('input'); dt.type='date'; dt.className='dt'; dt.setAttribute('aria-label','data');
+      dt.min=S.current+'-01'; dt.max=S.current+'-'+String(daysInMonth(S.current)).padStart(2,'0');
+      if(!item.data) item.data=defaultDate();
+      dt.value=item.data;
+      dt.addEventListener('change',()=>{if(dt.value){item.data=dt.value;markTouched();save();}});
+      sub.append(dt);
+    }
+    if(opts.due){
+      const lab=document.createElement('label'); lab.className='due'; lab.textContent='vence dia ';
+      const sel=document.createElement('select'); sel.setAttribute('aria-label','dia do vencimento');
+      sel.innerHTML='<option value="">—</option>'+Array.from({length:31},(_,i)=>'<option>'+(i+1)+'</option>').join('');
+      sel.value=item.dia?String(item.dia):'';
+      sel.addEventListener('change',()=>{item.dia=sel.value?+sel.value:null;markTouched();save();computedHooks.forEach(f=>f());});
+      lab.append(sel);
+      const paid=document.createElement('button'); paid.className='paid'+(item.pago?' on':'');
+      paid.textContent=item.pago?'✓ pago':'marcar pago';
+      paid.addEventListener('click',()=>{item.pago=!item.pago;markTouched();save();haptic(10);
+        paid.className='paid'+(item.pago?' on':''); paid.textContent=item.pago?'✓ pago':'marcar pago'; computedHooks.forEach(f=>f());});
+      sub.append(lab,paid);
+    }
+    row.append(sub);
+  }
+  return row;
+}
+
+/* ---------- escolha de categoria ---------- */
+let catPickCb=null, catReturnTo=null;
+function openCatPicker(current,cb){
+  catPickCb=cb; catReturnTo=openSheetEl&&openSheetEl.id!=='catSheet'?openSheetEl:null;
+  const g=document.getElementById('catGrid'); g.innerHTML='';
+  Cats.CATS.forEach(c=>{const b=document.createElement('button'); b.className='catopt'+(c.id===current?' on':'');
+    b.innerHTML='<span>'+c.emoji+'</span>'+c.nome;
+    b.addEventListener('click',()=>{haptic(6); const f=catPickCb; catPickCb=null; closeSheet(); f&&f(c.id);
+      if(catReturnTo){const r=catReturnTo; catReturnTo=null; openSheet(r);}}); g.append(b);});
+  openSheet(document.getElementById('catSheet'));
 }
 function buildMes(){
   const m=cur();
   const g=document.getElementById('ganhosList'); g.innerHTML=''; m.ganhos.forEach(it=>g.append(makeRow(it,m.ganhos)));
   const ex=document.getElementById('extraList'); ex.innerHTML='';
   if(m.extras.length===0){const p=document.createElement('p');p.className='hint';p.textContent='Nenhuma renda extra lançada este mês.';ex.append(p);}
-  m.extras.forEach(it=>ex.append(makeRow(it,m.extras,'var inc')));
-  const f=document.getElementById('fixosList'); f.innerHTML=''; m.fixos.forEach(it=>f.append(makeRow(it,m.fixos)));
+  m.extras.forEach(it=>ex.append(makeRow(it,m.extras,'var inc',{date:true})));
+  const f=document.getElementById('fixosList'); f.innerHTML=''; m.fixos.forEach(it=>f.append(makeRow(it,m.fixos,'',{cat:true,due:true})));
   const v=document.getElementById('varList'); v.innerHTML='';
   if(m.variaveis.length===0){const p=document.createElement('p');p.className='hint';p.textContent='Nenhum gasto variável lançado ainda este mês.';v.append(p);}
-  m.variaveis.forEach(it=>v.append(makeRow(it,m.variaveis,'var')));
+  m.variaveis.slice().sort((a,b)=>(b.data||'').localeCompare(a.data||'')).forEach(it=>v.append(makeRow(it,m.variaveis,'var',{cat:true,date:true})));
   document.getElementById('comPrevNome').value=m.comPrevNome||'Comissão (prevista)';
   document.getElementById('comPrev').value=m.comPrev;
   document.getElementById('comReal').value=m.comReal||'';
@@ -232,6 +294,7 @@ function updateComputed(animate){
   updateCoach();
   const av=document.getElementById('askVal'); if(av.value) av.dispatchEvent(new Event('input'));
   paintHist(); paintReserva(n,animate); paintDividas(n,animate);
+  computedHooks.forEach(f=>{try{f();}catch(e){console.error(e);}});
 }
 function goToMonth(id){ if(!S.months[id])return; S.current=id;
   document.getElementById('monthLabel').textContent=fmtMonth(id); buildMes(); switchTab('mes'); }
@@ -342,7 +405,7 @@ function goMonth(delta){
   const leaving=S.current;
   const target=shiftMonth(S.current,delta);
   if(!S.months[target]){const base=cur();
-    S.months[target]={ganhos:base.ganhos.map(x=>({...x})),comPrevNome:base.comPrevNome,comPrev:base.comPrev,comReal:0,fixos:base.fixos.map(x=>({...x})),variaveis:[],extras:[],touched:false};}
+    S.months[target]={ganhos:base.ganhos.map(x=>({...x})),comPrevNome:base.comPrevNome,comPrev:base.comPrev,comReal:0,fixos:base.fixos.map(x=>({...x,pago:false})),variaveis:[],extras:[],touched:false};}
   if(leaving!==todayId && S.months[leaving] && S.months[leaving].touched===false && leaving!==target) delete S.months[leaving];
   S.current=target; document.getElementById('monthLabel').textContent=fmtMonth(S.current);
   buildMes(); updateComputed(true); save();
@@ -423,6 +486,7 @@ function refreshPlan(){
   const addDiv=document.querySelector('[data-add=divida]');
   if(addDiv) addDiv.textContent=(!prem&&S.dividas.length>=1)?'+ adicionar dívida ⭐ Premium':'+ adicionar dívida';
   if(!prem&&document.getElementById('view-hist').classList.contains('active')) switchTab('mes');
+  computedHooks.forEach(f=>{try{f();}catch(e){console.error(e);}});
 }
 
 /* ---------- pedido de avaliação (em momentos felizes) ---------- */
@@ -463,22 +527,30 @@ function renderReview(step){
 scrim.addEventListener('click',closeSheet);
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSheet();});
 
-const QCHIPS={var:['Mercado','Lanche','Transporte','Farmácia','Lazer','Delivery','Combustível'],
-  extra:['Freela','Venda','Bônus','Bico','Pix recebido'], reserva:[]};
-let qType='var';
+const QUICK_CATS=['mercado','alimentacao','transporte','saude','lazer','compras','contas','outros'];
+const EXTRA_CHIPS=['Freela','Venda','Bônus','Bico','Pix recebido'];
+let qType='var', qCat=null;
 function paintQuick(){
   document.querySelectorAll('#qType button').forEach(b=>b.classList.toggle('on',b.dataset.q===qType));
   const box=document.getElementById('qChips'); box.innerHTML='';
-  QCHIPS[qType].forEach(c=>{const b=document.createElement('button'); b.textContent=c;
+  if(qType==='var') QUICK_CATS.forEach(id=>{const c=Cats.get(id); const b=document.createElement('button');
+    b.textContent=c.emoji+' '+c.nome; b.dataset.cat=id; if(qCat===id) b.className='on';
+    b.addEventListener('click',()=>{qCat=qCat===id?null:id; paintQuick(); haptic(5);}); box.append(b);});
+  if(qType==='extra') EXTRA_CHIPS.forEach(c=>{const b=document.createElement('button'); b.textContent=c;
     b.addEventListener('click',()=>{document.getElementById('qName').value=c;
       box.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));haptic(5);}); box.append(b);});
   document.getElementById('qName').hidden=qType==='reserva';
+  document.getElementById('qName').placeholder=qType==='var'&&qCat?Cats.get(qCat).nome+' (descrição opcional)':'Descrição (opcional)';
+  const qd=document.getElementById('qDate'); qd.hidden=qType==='reserva';
+  qd.min=S.current+'-01'; qd.max=S.current+'-'+String(daysInMonth(S.current)).padStart(2,'0');
+  if(!qd.value||qd.value<qd.min||qd.value>qd.max) qd.value=defaultDate();
   document.getElementById('qSave').textContent=qType==='reserva'?'Guardar na reserva':qType==='extra'?'Lançar renda':'Lançar gasto';
 }
 document.querySelectorAll('#qType button').forEach(b=>b.addEventListener('click',()=>{qType=b.dataset.q;paintQuick();haptic(5);}));
 document.getElementById('fab').addEventListener('click',()=>{
   haptic(8); qType=document.querySelector('#view-reserva.active')?'reserva':'var';
-  document.getElementById('qVal').value=''; document.getElementById('qName').value='';
+  document.getElementById('qVal').value=''; document.getElementById('qName').value=''; qCat=null;
+  document.getElementById('qDate').value=defaultDate();
   paintQuick(); openSheet(document.getElementById('quickSheet'));
   setTimeout(()=>document.getElementById('qVal').focus(),250);
 });
@@ -489,8 +561,12 @@ function quickSave(){
   track('lancamento_rapido',{tipo:qType});
   if(qType==='reserva'){moverReserva(v); closeSheet(); toast('R$ '+v.toLocaleString('pt-BR')+' guardado na reserva 🛟'); haptic(15); return;}
   const m=cur(); const list=qType==='extra'?m.extras:m.variaveis;
-  const item={nome:nome||(qType==='extra'?'Renda extra':'Gasto do dia'),valor:v};
+  const typedCat=qType==='var'?(qCat||Cats.guess(nome)):null;
+  const item={nome:nome||(qType==='extra'?'Renda extra':(typedCat?Cats.get(typedCat).nome:'Gasto do dia')),valor:v,
+    data:document.getElementById('qDate').value||defaultDate()};
+  if(typedCat) item.cat=typedCat;
   list.push(item); markTouched(); buildMes(); updateComputed(true); save(); closeSheet(); haptic(15);
+  launchHooks.forEach(f=>{try{f(item,qType);}catch(e){console.error(e);}});
   P.launches=(P.launches||0)+1; savePrefs(); if(P.launches===8) maybeAskReview('lancamentos');
   toast((qType==='extra'?'Renda de ':'Gasto de ')+money(v)+' lançado','Desfazer',()=>{const i=list.indexOf(item);if(i>-1)list.splice(i,1);buildMes();updateComputed(true);save();});
 }
@@ -543,6 +619,9 @@ document.getElementById('importFile').addEventListener('change',e=>{
 window.FolegoApp={
   getState:()=>S, replaceState, exportData, toast, haptic, celebrate, switchTab,
   isFirstRun:()=>firstRun, maybeOnboard, openSheet, closeSheet, requirePremium,
+  cur, monthNumbers, money, money1, fmtMonth, abrevMonth, shiftMonth, todayId, save, markTouched, buildMes, updateComputed,
+  isPremium:()=>plan.isPremium(), track, openCatPicker,
+  onComputed:f=>computedHooks.push(f), onLaunch:f=>launchHooks.push(f),
   setPlan:p=>{plan=Object.assign(plan,p);}, refreshPlan, onSheetClose:f=>sheetCloseHooks.push(f),
   wipe:()=>{try{localStorage.removeItem(KEY);}catch(e){} S=defaults();firstRun=true;onboarded=false;prevResBucket=0;init();},
   onSave:f=>saveHooks.push(f), onTab:f=>tabHooks.push(f)

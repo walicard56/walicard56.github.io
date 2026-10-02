@@ -62,6 +62,8 @@
       <p class="askres" id="askRes"></p>
     </div>
 
+    <section id="billsCard" hidden></section>
+
     <div class="summary">
       <div class="card">
         <div class="label" id="sobraLabel">Sobra do mês</div>
@@ -115,10 +117,13 @@
       <button class="add" data-add="var">+ lançar gasto do dia</button>
     </section>
 
+    <section id="orcSection"></section>
+
   </div>
 
   <!-- HISTÓRICO -->
   <div class="view" id="view-hist">
+    <section id="relSection"></section>
     <div class="stats">
       <div class="stat"><div class="sv num" id="stAvg">R$ 0</div><div class="sl">sobra média</div></div>
       <div class="stat"><div class="sv num" id="stBest">R$ 0</div><div class="sl">melhor mês</div></div>
@@ -182,6 +187,8 @@
         <div class="seg" id="themeSeg"><button data-theme-opt="auto">Auto</button><button data-theme-opt="light">Claro</button><button data-theme-opt="dark">Escuro</button></div></div>
       <div class="setrow"><span>Vibrar ao tocar</span>
         <label class="switch" style="margin:0"><input type="checkbox" id="toggleHaptic"><span class="track"></span></label></div>
+      <div class="setrow" id="pushRow"><span>Lembrete de contas a pagar<small class="hint" style="display:block">notificação 1 dia antes e no dia do vencimento</small></span>
+        <label class="switch" style="margin:0"><input type="checkbox" id="togglePush"><span class="track"></span></label></div>
       <div class="setrow" id="statsRow"><span>Enviar estatísticas anônimas<small class="hint" style="display:block">ajuda a melhorar o app; nunca inclui valores</small></span>
         <label class="switch" style="margin:0"><input type="checkbox" id="toggleStats"><span class="track"></span></label></div>
     </section>
@@ -207,7 +214,7 @@
     <button data-q="var" class="on">Gasto</button><button data-q="extra">Renda extra</button><button data-q="reserva">Guardar</button>
   </div>
   <div class="amount"><span>R$</span><input id="qVal" type="number" inputmode="decimal" placeholder="0" aria-label="valor"></div>
-  <input class="field-in" id="qName" placeholder="Descrição (opcional)" maxlength="40" aria-label="descrição">
+  <div class="qrow"><input class="field-in" id="qName" placeholder="Descrição (opcional)" maxlength="40" aria-label="descrição"><input class="field-in" id="qDate" type="date" aria-label="data"></div>
   <div class="qchips" id="qChips"></div>
   <button class="btn-big" id="qSave">Lançar</button>
 </div>
@@ -232,6 +239,16 @@
   <button class="sheet-x" data-close-sheet aria-label="fechar">×</button>
   <div id="paywallBody"></div>
 </div>
+<div class="sheet" id="catSheet" role="dialog" aria-label="Categoria">
+  <div class="grab"></div>
+  <h3>Categoria</h3>
+  <div class="catgrid" id="catGrid"></div>
+</div>
+<div class="sheet" id="budgetSheet" role="dialog" aria-label="Orçamentos">
+  <div class="grab"></div>
+  <button class="sheet-x" data-close-sheet aria-label="fechar">×</button>
+  <div id="budgetBody"></div>
+</div>
 <div class="sheet" id="reviewSheet" role="dialog" aria-label="Avaliação">
   <div class="grab"></div>
   <div id="reviewBody"></div>
@@ -245,7 +262,10 @@
 </nav>
 
 <script src="js/analytics.js"></script>
+<script src="js/categorias.js"></script>
 <script src="js/app.js"></script>
 <script src="js/account.js"></script>
+<script src="js/relatorios.js"></script>
+<script src="js/lembretes.js"></script>
 </body>
 </html>

@@ -514,5 +514,5 @@
   }
 
   boot();
-  window.FolegoAccount = {status, isPremium, subscribe, openPaywall};
+  window.FolegoAccount = {status, isPremium, subscribe, openPaywall, client: () => sb, user: () => user};
 })();

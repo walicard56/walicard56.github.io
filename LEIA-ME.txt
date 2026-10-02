@@ -152,9 +152,29 @@ Google reembolsa a compra em 3 dias.
        npx supabase secrets set GOOGLE_SERVICE_ACCOUNT="$(cat caminho/da/chave.json)"
        npx supabase functions deploy verify-purchase
        npx supabase functions deploy delete-account
+     (lembretes: veja o Passo 5C)
      (SEU_PROJECT_REF é o código na URL do projeto: https://SEU_PROJECT_REF.supabase.co)
   5. Teste: com seu Gmail em "Teste de licença", assine no app instalado.
      A linha deve aparecer em Table Editor > subscriptions.
+
+
+PASSO 5C — LEMBRETES DE CONTAS POR NOTIFICAÇÃO (opcional)
+---------------------------------------------------------
+O app avisa 1 dia antes e no dia do vencimento das contas fixas que têm
+"vence dia" preenchido. O envio é feito pelo servidor todo dia às 9h.
+  1. Gere as chaves (no computador):
+       npx web-push generate-vapid-keys
+     Copie a Public Key para config.js > VAPID_PUBLIC_KEY.
+  2. Configure os segredos e publique a função:
+       npx supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:SEU_EMAIL CRON_SECRET=UMA_SENHA_LONGA_QUALQUER
+       npx supabase functions deploy send-reminders --no-verify-jwt
+  3. No SQL Editor, abra supabase/cron-lembretes.sql, troque <PROJECT_REF>
+     e <CRON_SECRET> e rode (agenda o envio diário).
+  4. No PWABuilder, ao gerar o pacote Android, deixe marcado
+     "Notification delegation" para as notificações saírem com o ícone do app.
+  5. Teste: no app, Conta e ajustes > "Lembrete de contas a pagar". Marque
+     uma conta para vencer hoje e rode no SQL Editor o comando do
+     cron-lembretes.sql (o select net.http_post...) manualmente.
 
 
 PASSO 6 — FICHA DA LOJA E PUBLICAÇÃO

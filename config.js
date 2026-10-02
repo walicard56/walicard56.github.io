@@ -31,6 +31,9 @@ window.FOLEGO_CONFIG = {
   // Nome do pacote Android gerado no PWABuilder (ex.: io.github.walicard56.twa).
   PLAY_PACKAGE: 'io.github.walicard56.twa',
 
+  // Lembretes por notificação: chave pública VAPID (veja o LEIA-ME, Passo 5C).
+  VAPID_PUBLIC_KEY: '',
+
   // Estatísticas de uso anônimas e erros (opcional): crie um projeto grátis em
   // https://posthog.com e cole a "Project API key" (começa com phc_).
   POSTHOG_KEY: '',
