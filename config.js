@@ -27,5 +27,10 @@ window.FOLEGO_CONFIG = {
   PLAY_SKU: 'folego_premium_mensal',
 
   // Nome do pacote Android gerado no PWABuilder (ex.: io.github.walicard56.twa).
-  PLAY_PACKAGE: 'io.github.walicard56.twa'
+  PLAY_PACKAGE: 'io.github.walicard56.twa',
+
+  // Estatísticas de uso anônimas e erros (opcional): crie um projeto grátis em
+  // https://posthog.com e cole a "Project API key" (começa com phc_).
+  POSTHOG_KEY: '',
+  POSTHOG_HOST: 'https://us.i.posthog.com'
 };

@@ -7,6 +7,7 @@
   'use strict';
   const C = Object.assign({TRIAL_DAYS:7, PRICE_LABEL:'R$ 9,99/mês', PLAY_SKU:'', PLAY_PACKAGE:''}, window.FOLEGO_CONFIG||{});
   const App = window.FolegoApp;
+  const A = window.FolegoAnalytics || {track(){}, identify(){}, reset(){}, captureError(){}};
   const ENABLED = !!(C.GOOGLE_CLIENT_ID && C.SUPABASE_URL && C.SUPABASE_ANON_KEY);
   const DAY = 864e5;
   const PLAY_METHOD = 'https://play.google.com/billing';
@@ -89,11 +90,12 @@
       const {data, error} = await sb.auth.signInWithIdToken({provider:'google', token: resp.credential, nonce: rawNonce});
       if(error) throw error;
       setUser(data.user);
+      A.identify(user.id); A.track('login_ok');
       await loadProfile().catch(()=>{});
       App.haptic(15);
       await afterSignedIn();
     }catch(e){
-      console.error(e);
+      console.error(e); A.track('login_erro'); A.captureError(e, {fonte:'login'});
       App.toast('Não foi possível entrar. Tente de novo.');
     }finally{ signingIn = false; render(); }
   }
@@ -130,6 +132,7 @@
     catch(e){ if(!confirm('Não deu para salvar as últimas alterações na nuvem (sem internet?). Sair mesmo assim e perder essas alterações?')) return; }
     try{ await sb.auth.signOut(); }catch(e){}
     try{ google.accounts.id.disableAutoSelect(); }catch(e){}
+    A.track('logout'); A.reset();
     clearLocalAccount(); App.wipe(); render();
   }
   async function deleteAccount(){
@@ -140,6 +143,7 @@
     }catch(e){ App.toast('Não foi possível excluir agora. Verifique a internet.'); return; }
     try{ await sb.auth.signOut({scope:'local'}); }catch(e){}
     try{ google.accounts.id.disableAutoSelect(); }catch(e){}
+    A.track('conta_excluida'); A.reset();
     clearLocalAccount(); App.wipe();
     App.toast('Conta e dados excluídos.');
     render();
@@ -234,7 +238,7 @@
       if(C.PLAY_PACKAGE) window.open('https://play.google.com/store/apps/details?id=' + encodeURIComponent(C.PLAY_PACKAGE), '_blank', 'noopener');
       return;
     }
-    busy = true; render();
+    busy = true; render(); A.track('assinatura_iniciada');
     try{
       const req = new PaymentRequest(
         [{supportedMethods: PLAY_METHOD, data: {sku: C.PLAY_SKU}}],
@@ -243,13 +247,15 @@
       const resp = await req.show();
       const token = resp.details && resp.details.purchaseToken;
       await resp.complete('success');
+      A.track('assinatura_concluida');
       App.haptic([20,40,20]); App.celebrate();
       App.toast('Assinatura ativa. Obrigado por apoiar o Fôlego! 💜');
       await refreshPremium(token ? [token] : []);
       // Se o servidor ainda não confirmou (sem internet etc.), libera por 1 dia e revalida depois.
       if(!premiumActive()) setPremium(new Date(Date.now() + DAY).toISOString());
     }catch(e){
-      if(e && e.name !== 'AbortError') App.toast('A compra não foi concluída.');
+      if(e && e.name !== 'AbortError'){ App.toast('A compra não foi concluída.'); A.captureError(e, {fonte:'compra'}); }
+      else A.track('assinatura_cancelada');
     }finally{ busy = false; render(); }
   }
   const manageUrl = () => 'https://play.google.com/store/account/subscriptions?sku=' + encodeURIComponent(C.PLAY_SKU) + '&package=' + encodeURIComponent(C.PLAY_PACKAGE);
@@ -379,7 +385,7 @@
   /* ---------- fluxo ---------- */
   async function afterSignedIn(){
     let reloading = false;
-    try{ reloading = await reconcile(); }catch(e){ console.error(e); }
+    try{ reloading = await reconcile(); }catch(e){ console.error(e); A.captureError(e, {fonte:'sincronizacao'}); }
     if(reloading) return;
     render();
     refreshPremium();
@@ -404,7 +410,7 @@
       await initSupabase();
       const {data:{session}} = await sb.auth.getSession();
       if(session){
-        setUser(session.user);
+        setUser(session.user); A.identify(user.id);
         await loadProfile().catch(()=>{});
         await afterSignedIn();
       }else if(user){
