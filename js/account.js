@@ -1,26 +1,17 @@
 /*
- * Fôlego — conta Google + Supabase (banco de dados dos clientes), plano Premium
- * (teste grátis de 7 dias + assinatura mensal/anual pela Google Play) e
- * sincronização dos dados na nuvem.
- *
- * Modelo freemium: o app é grátis para sempre sem login. Entrar com Google salva os
- * dados na nuvem e libera 7 dias de Premium. Depois, volta ao grátis (sem bloqueio).
- *
- * Depende de config.js, js/analytics.js e js/app.js carregados antes.
+ * Fôlego — conta Google + Supabase (banco de dados dos clientes), teste grátis,
+ * assinatura (Google Play Billing) e sincronização dos dados na nuvem.
+ * Depende de config.js (window.FOLEGO_CONFIG) e do app (window.FolegoApp) carregados antes.
  */
 (function(){
   'use strict';
-  const C = Object.assign({TRIAL_DAYS:7, PRICE_LABEL:'R$ 9,99', PRICE_LABEL_ANUAL:'R$ 79,90',
-    PLAY_SKU:'', PLAY_SKU_ANUAL:'', PLAY_PACKAGE:''}, window.FOLEGO_CONFIG||{});
+  const C = Object.assign({TRIAL_DAYS:7, PRICE_LABEL:'R$ 9,99/mês', PLAY_SKU:'', PLAY_PACKAGE:''}, window.FOLEGO_CONFIG||{});
   const App = window.FolegoApp;
-  const A = window.FolegoAnalytics || {track(){}, identify(){}, reset(){}, captureError(){}};
   const ENABLED = !!(C.GOOGLE_CLIENT_ID && C.SUPABASE_URL && C.SUPABASE_ANON_KEY);
   const DAY = 864e5;
   const PLAY_METHOD = 'https://play.google.com/billing';
   const SUPABASE_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.min.js';
-  const SKUS = [C.PLAY_SKU, C.PLAY_SKU_ANUAL].filter(Boolean);
   const USER_KEY = 'folego-user', PROFILE_KEY = 'folego-profile', PREM_KEY = 'folego-premium', SYNC_KEY = 'folego-sync';
-  const ENDED_DISMISS_KEY = 'folego-trial-ended-dismissed';
 
   const store = {
     get(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } },
@@ -29,39 +20,34 @@
   };
   const $ = id => document.getElementById(id);
   const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const on = (id, fn) => { const el = $(id); if(el) el.addEventListener('click', fn); };
 
   let sb = null;                           // cliente Supabase
   let user = store.get(USER_KEY);          // {id,email,name,fullName,picture} — cópia local p/ abrir offline
-  const prices = {[C.PLAY_SKU]: C.PRICE_LABEL, [C.PLAY_SKU_ANUAL]: C.PRICE_LABEL_ANUAL};
-  let billing = null;                      // Digital Goods service (só no app instalado pela Play Store)
+  let price = C.PRICE_LABEL;
+  let billing = null;                      // Digital Goods service (só dentro do app da Play Store)
   let gsiState = 'loading';                // loading | ready | error
   let busy = false, signingIn = false, syncing = false;
   let rawNonce = '';                       // nonce do login (o Google recebe o hash; o Supabase confere)
-  let chosenSku = C.PLAY_SKU_ANUAL || C.PLAY_SKU;
-  let paywallFeature = null;
 
-  /* ---------- plano ---------- */
+  /* ---------- estado do plano ---------- */
   function trialStart(){
     const p = store.get(PROFILE_KEY);
     return p && user && p.uid === user.id ? p.trialStartedAt : Date.now();
   }
   const trialDaysLeft = () => Math.max(0, Math.ceil((trialStart() + C.TRIAL_DAYS*DAY - Date.now()) / DAY));
-  function premiumInfo(){
+  function premiumActive(){
     const p = store.get(PREM_KEY);
-    return p && user && p.uid === user.id && p.expiresAt > Date.now() ? p : null;
+    return !!(p && user && p.uid === user.id && p.expiresAt > Date.now());
   }
-  /** dev (sem configuração) | guest | trial | premium | free */
   function status(){
-    if(!ENABLED) return 'dev';
-    if(!user) return 'guest';
-    if(premiumInfo()) return 'premium';
-    return trialDaysLeft() > 0 ? 'trial' : 'free';
+    if(!ENABLED) return 'free';
+    if(!user) return 'signedout';
+    if(premiumActive()) return 'premium';
+    return trialDaysLeft() > 0 ? 'trial' : 'expired';
   }
-  const isPremium = () => ['dev','trial','premium'].includes(status());
-  function setPremium(expiresAt, sku){
+  function setPremium(expiresAt){
     if(!user) return;
-    store.set(PREM_KEY, {uid:user.id, expiresAt: expiresAt ? Date.parse(expiresAt) : 0, sku: sku || null});
+    store.set(PREM_KEY, {uid:user.id, expiresAt: expiresAt ? Date.parse(expiresAt) : 0});
   }
 
   /* ---------- carregamento ---------- */
@@ -85,8 +71,10 @@
   }
   function clearLocalAccount(){
     user = null;
-    [USER_KEY, PROFILE_KEY, PREM_KEY, SYNC_KEY, ENDED_DISMISS_KEY].forEach(store.del);
+    [USER_KEY, PROFILE_KEY, PREM_KEY, SYNC_KEY].forEach(store.del);
   }
+
+  /* ---------- perfil e teste grátis (vem do servidor) ---------- */
   async function loadProfile(){
     const {data, error} = await sb.from('profiles').select('trial_started_at').eq('id', user.id).maybeSingle();
     if(error) throw error;
@@ -101,17 +89,11 @@
       const {data, error} = await sb.auth.signInWithIdToken({provider:'google', token: resp.credential, nonce: rawNonce});
       if(error) throw error;
       setUser(data.user);
-      A.identify(user.id);
       await loadProfile().catch(()=>{});
-      A.track('login_ok', {origem: paywallFeature ? 'paywall' : 'conta', teste_ativo: status() === 'trial'});
       App.haptic(15);
-      const wasPaywall = !!paywallFeature;
-      closePaywall();
       await afterSignedIn();
-      if(status() === 'trial') App.toast((wasPaywall ? 'Pronto! ' : 'Bem-vindo, ' + user.name + '! ') + 'Você tem ' + trialDaysLeft() + ' dias de Premium grátis ⭐');
-      else App.toast('Bem-vindo, ' + user.name + '! Seus dados agora ficam salvos na nuvem ☁️');
     }catch(e){
-      console.error(e); A.track('login_erro'); A.captureError(e, {fonte:'login'});
+      console.error(e);
       App.toast('Não foi possível entrar. Tente de novo.');
     }finally{ signingIn = false; render(); }
   }
@@ -120,7 +102,7 @@
     if(signingIn){ el.innerHTML = '<div class="spinner" aria-label="entrando"></div>'; return; }
     if(gsiState === 'ready'){
       el.innerHTML = '';
-      google.accounts.id.renderButton(el, {theme:'filled_black', size:'large', shape:'pill', text:'continue_with', locale:'pt-BR', width:260});
+      google.accounts.id.renderButton(el, {theme:'filled_black', size:'large', shape:'pill', text:'continue_with', locale:'pt-BR', width:280});
     }else if(gsiState === 'error'){
       el.innerHTML = '<p class="hint" style="text-align:center">Sem conexão com o Google. Verifique a internet e <a href="" onclick="location.reload();return false">tente de novo</a>.</p>';
     }else{
@@ -135,11 +117,12 @@
       const hashedNonce = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2,'0')).join('');
       google.accounts.id.initialize({
         client_id: C.GOOGLE_CLIENT_ID, callback: onCredential, nonce: hashedNonce,
-        auto_select: true, cancel_on_tap_outside: true, use_fedcm_for_prompt: true
+        auto_select: true, cancel_on_tap_outside: false, use_fedcm_for_prompt: true
       });
       gsiState = 'ready';
+      if(!user) google.accounts.id.prompt();
     }catch(e){ gsiState = 'error'; }
-    document.querySelectorAll('.gsi-slot').forEach(renderGoogleButton);
+    renderGoogleButton($('gsiBtn'));
   }
   async function signOut(){
     if(!confirm('Sair da conta? Seus dados ficam guardados na nuvem e voltam quando você entrar de novo.')) return;
@@ -147,7 +130,6 @@
     catch(e){ if(!confirm('Não deu para salvar as últimas alterações na nuvem (sem internet?). Sair mesmo assim e perder essas alterações?')) return; }
     try{ await sb.auth.signOut(); }catch(e){}
     try{ google.accounts.id.disableAutoSelect(); }catch(e){}
-    A.track('logout'); A.reset();
     clearLocalAccount(); App.wipe(); render();
   }
   async function deleteAccount(){
@@ -158,7 +140,6 @@
     }catch(e){ App.toast('Não foi possível excluir agora. Verifique a internet.'); return; }
     try{ await sb.auth.signOut({scope:'local'}); }catch(e){}
     try{ google.accounts.id.disableAutoSelect(); }catch(e){}
-    A.track('conta_excluida'); A.reset();
     clearLocalAccount(); App.wipe();
     App.toast('Conta e dados excluídos.');
     render();
@@ -214,21 +195,21 @@
   }
 
   /* ---------- Google Play Billing + validação no servidor ---------- */
-  const fmtBRL = (v, cur) => new Intl.NumberFormat('pt-BR', {style:'currency', currency:cur||'BRL'}).format(v);
   async function initBilling(){
     if(!('getDigitalGoodsService' in window)) return;
     try{ billing = await window.getDigitalGoodsService(PLAY_METHOD); }catch(e){ billing = null; }
     if(!billing) return;
     try{
-      (await billing.getDetails(SKUS)).forEach(item => {
-        if(item && item.price) prices[item.itemId] = fmtBRL(+item.price.value, item.price.currency);
-      });
+      const [item] = await billing.getDetails([C.PLAY_SKU]);
+      if(item && item.price){
+        price = new Intl.NumberFormat('pt-BR', {style:'currency', currency:item.price.currency}).format(+item.price.value) + '/mês';
+      }
     }catch(e){}
     render();
   }
   async function playTokens(){
     if(!billing) return [];
-    try{ return (await billing.listPurchases()).filter(p => SKUS.includes(p.itemId)).map(p => p.purchaseToken); }
+    try{ return (await billing.listPurchases()).filter(p => p.itemId === C.PLAY_SKU).map(p => p.purchaseToken); }
     catch(e){ return []; }
   }
   /** Revalida a assinatura na Google Play (via função do Supabase) e atualiza o cache. */
@@ -238,148 +219,93 @@
     try{
       const {data, error} = await sb.functions.invoke('verify-purchase', {body:{purchaseTokens:tokens}});
       if(error) throw error;
-      setPremium(data && data.expires_at, data && data.product_id);
+      setPremium(data && data.expires_at);
     }catch(e){
       try{
-        const {data} = await sb.from('subscriptions').select('expires_at,product_id').eq('user_id', user.id).order('expires_at', {ascending:false}).limit(1);
-        if(data) setPremium(data[0] && data[0].expires_at, data[0] && data[0].product_id);
+        const {data} = await sb.from('subscriptions').select('expires_at').eq('user_id', user.id).order('expires_at', {ascending:false}).limit(1);
+        if(data) setPremium(data[0] && data[0].expires_at);
       }catch(e2){}
     }
     render();
   }
-  async function subscribe(sku){
-    sku = sku || chosenSku;
+  async function subscribe(){
     if(busy) return;
-    if(!user){ openPaywall('assinar'); return; }
     if(!billing){
-      A.track('assinatura_fora_da_play');
       if(C.PLAY_PACKAGE) window.open('https://play.google.com/store/apps/details?id=' + encodeURIComponent(C.PLAY_PACKAGE), '_blank', 'noopener');
       return;
     }
-    busy = true; render(); A.track('assinatura_iniciada', {plano: sku === C.PLAY_SKU_ANUAL ? 'anual' : 'mensal'});
+    busy = true; render();
     try{
       const req = new PaymentRequest(
-        [{supportedMethods: PLAY_METHOD, data: {sku}}],
+        [{supportedMethods: PLAY_METHOD, data: {sku: C.PLAY_SKU}}],
         {total: {label: 'Total', amount: {currency: 'BRL', value: '0'}}}
       );
       const resp = await req.show();
       const token = resp.details && resp.details.purchaseToken;
       await resp.complete('success');
-      A.track('assinatura_concluida', {plano: sku === C.PLAY_SKU_ANUAL ? 'anual' : 'mensal'});
-      closePaywall();
       App.haptic([20,40,20]); App.celebrate();
-      App.toast('Premium ativado. Obrigado por apoiar o Fôlego! 💜');
+      App.toast('Assinatura ativa. Obrigado por apoiar o Fôlego! 💜');
       await refreshPremium(token ? [token] : []);
       // Se o servidor ainda não confirmou (sem internet etc.), libera por 1 dia e revalida depois.
-      if(!premiumInfo()) setPremium(new Date(Date.now() + DAY).toISOString(), sku);
+      if(!premiumActive()) setPremium(new Date(Date.now() + DAY).toISOString());
     }catch(e){
-      if(e && e.name !== 'AbortError'){ App.toast('A compra não foi concluída.'); A.captureError(e, {fonte:'compra'}); }
-      else A.track('assinatura_cancelada');
+      if(e && e.name !== 'AbortError') App.toast('A compra não foi concluída.');
     }finally{ busy = false; render(); }
   }
-  function manageUrl(){
-    const p = premiumInfo();
-    return 'https://play.google.com/store/account/subscriptions?package=' + encodeURIComponent(C.PLAY_PACKAGE) +
-      (p && p.sku ? '&sku=' + encodeURIComponent(p.sku) : '');
-  }
+  const manageUrl = () => 'https://play.google.com/store/account/subscriptions?sku=' + encodeURIComponent(C.PLAY_SKU) + '&package=' + encodeURIComponent(C.PLAY_PACKAGE);
 
-  /* ---------- folha de assinatura (paywall) ---------- */
-  const FEATURE_TITLES = {
-    historico: 'Histórico e relatórios são Premium',
-    dividas: 'Dívidas ilimitadas são Premium',
-    orcamento: 'Orçamento por categoria é Premium',
-    renda: 'Renda segura é Premium',
-    mei: 'A área MEI é Premium',
-    lumi: 'Conversar com a Lumi é Premium',
-    importar: 'Importar extrato é Premium'
-  };
-  const BENEFITS = [
-    ['📈','Histórico de todos os meses e relatórios por categoria'],
-    ['🎯','Orçamento por categoria com alertas'],
-    ['💳','Dívidas e parcelamentos ilimitados'],
-    ['🧮','Renda segura e área MEI'],
-    ['🤖','Pergunte à Lumi: “posso comprar isso?”'],
-    ['🏦','Importe o extrato do banco']
+  /* ---------- interface ---------- */
+  const FEATURES = [
+    ['📊','Veja quanto sobra no mês, mesmo com renda variável'],
+    ['🛟','Monte sua reserva de emergência com metas'],
+    ['💳','Acompanhe parcelas e saiba quando quita cada dívida'],
+    ['☁️','Seus dados salvos na nuvem, em qualquer celular']
   ];
-  function monthlyEquivalent(){
-    const raw = String(prices[C.PLAY_SKU_ANUAL]||'').replace(/[^\d,]/g,'').replace(',','.');
-    const v = parseFloat(raw);
-    return v ? fmtBRL(v/12) : '';
-  }
-  function savingPct(){
-    const m = parseFloat(String(prices[C.PLAY_SKU]||'').replace(/[^\d,]/g,'').replace(',','.'));
-    const y = parseFloat(String(prices[C.PLAY_SKU_ANUAL]||'').replace(/[^\d,]/g,'').replace(',','.'));
-    return m && y ? Math.round((1 - y/(m*12))*100) : 0;
-  }
-  function openPaywall(feature){
-    paywallFeature = feature || 'geral';
-    A.track('paywall_visto', {recurso: paywallFeature, plano_atual: status()});
-    renderPaywall();
-    App.openSheet($('paywall'));
-  }
-  function closePaywall(){
-    if(!paywallFeature) return;
-    paywallFeature = null;
-    App.closeSheet();
-  }
-  function renderPaywall(){
-    const el = $('paywallBody'); if(!el || !paywallFeature) return;
-    const st = status();
-    const title = FEATURE_TITLES[paywallFeature] || 'Fôlego Premium';
-    const canTrial = st === 'guest';
-    const save = savingPct();
-    const plans = SKUS.length > 1
-      ? '<div class="plans">' +
-          '<button class="plan-opt' + (chosenSku===C.PLAY_SKU_ANUAL?' on':'') + '" data-sku="' + esc(C.PLAY_SKU_ANUAL) + '">' +
-            (save ? '<span class="save">-' + save + '%</span>' : '') +
-            '<b>Anual</b><span class="num">' + esc(prices[C.PLAY_SKU_ANUAL]) + '</span><small>' + (monthlyEquivalent() ? 'só ' + esc(monthlyEquivalent()) + '/mês' : 'por ano') + '</small></button>' +
-          '<button class="plan-opt' + (chosenSku===C.PLAY_SKU?' on':'') + '" data-sku="' + esc(C.PLAY_SKU) + '">' +
-            '<b>Mensal</b><span class="num">' + esc(prices[C.PLAY_SKU]) + '</span><small>por mês</small></button>' +
-        '</div>'
-      : '';
-    let cta;
-    if(canTrial){
-      cta = '<p class="pw-trial">Entre com o Google e ganhe <b>' + C.TRIAL_DAYS + ' dias de Premium grátis</b>. Sem cartão, sem cobrança automática.</p>' +
-            '<div class="gsi gsi-slot" id="gsiPaywall"></div>';
+  const featureList = () => '<ul class="feat">' + FEATURES.map(f => '<li><span>'+f[0]+'</span>'+f[1]+'</li>').join('') + '</ul>';
+  const on = (id, fn) => { const el = $(id); if(el) el.addEventListener('click', fn); };
+
+  function renderGate(){
+    const gate = $('gate'); const st = status();
+    const show = st === 'signedout' || st === 'expired';
+    gate.hidden = !show;
+    document.body.classList.toggle('locked', show);
+    if(!show){ gate.innerHTML = ''; return; }
+    let html;
+    if(st === 'signedout'){
+      html = '<div class="gate-hero"><div class="gate-logo"><svg viewBox="0 0 24 24"><path d="M4 14c3-6 7-6 8-3s4 3 8-3"/><path d="M4 20h16"/></svg></div>' +
+        '<h2>Fôlego</h2><p>O controle financeiro de quem vive de renda variável.</p></div>' + featureList() +
+        '<div id="gsiBtn" class="gsi"></div>' +
+        '<p class="fine"><b>' + C.TRIAL_DAYS + ' dias grátis</b>, sem cartão. Depois, ' + esc(price) + '. Cancele quando quiser.</p>' +
+        '<p class="fine"><a href="privacy.html" target="_blank">Privacidade</a> · <a href="termos.html" target="_blank">Termos de uso</a></p>';
     }else{
-      const anual = chosenSku === C.PLAY_SKU_ANUAL;
-      cta = (st === 'trial' ? '<p class="pw-trial">Seu teste grátis termina em <b>' + trialDaysLeft() + ' dia' + (trialDaysLeft()>1?'s':'') + '</b>. Assine para não perder o Premium.</p>' : '') +
-        '<button class="btn-big" id="pwSub"' + (busy?' disabled':'') + '>' + (busy ? 'Abrindo a Play Store…' : (billing ? 'Assinar ' + (anual?'plano anual':'plano mensal') : 'Assinar pelo app na Google Play')) + '</button>' +
-        (billing ? '<button class="btn-link" id="pwRestore">Já assinei — restaurar compra</button>' : '') +
-        '<p class="fine">' + esc(prices[chosenSku]) + (anual ? ' por ano' : ' por mês') + ', cobrado pela Google Play. Renova automaticamente; cancele quando quiser em Play Store › Pagamentos e assinaturas.</p>';
+      html = '<div class="gate-hero"><div class="gate-logo">⭐</div><h2>Seu teste grátis acabou</h2>' +
+        '<p>Continue no controle do seu dinheiro com o Fôlego Premium.</p></div>' + featureList() +
+        '<div class="price-tag"><span class="num">' + esc(price) + '</span><small>renovação mensal · cancele quando quiser</small></div>' +
+        (billing
+          ? '<button class="btn-big" id="gSub"' + (busy?' disabled':'') + '>' + (busy?'Abrindo a Play Store…':'Assinar agora') + '</button>' +
+            '<button class="btn-link" id="gRefresh">Já assinei — restaurar compra</button>'
+          : '<button class="btn-big" id="gSub">Assinar pelo app na Google Play</button>' +
+            '<p class="fine">A assinatura é feita com segurança pela Google Play, no app instalado.</p>') +
+        '<div class="gate-foot"><button class="btn-link" id="gExport">Exportar meus dados</button><button class="btn-link" id="gOut">Sair (' + esc(user.email) + ')</button></div>';
     }
-    el.innerHTML = '<div class="pw-head"><div class="gate-logo">⭐</div><h3>' + esc(title) + '</h3>' +
-      '<p class="hint">O plano grátis continua seu para sempre. O Premium leva o controle a outro nível:</p></div>' +
-      '<ul class="feat">' + BENEFITS.map(b => '<li><span>'+b[0]+'</span>'+b[1]+'</li>').join('') + '</ul>' +
-      (canTrial ? '' : plans) + cta;
-    renderGoogleButton($('gsiPaywall'));
-    el.querySelectorAll('.plan-opt').forEach(b => b.addEventListener('click', () => { chosenSku = b.dataset.sku; App.haptic(6); renderPaywall(); }));
-    on('pwSub', () => subscribe(chosenSku));
-    on('pwRestore', async () => { await refreshPremium(); if(status() === 'premium'){ closePaywall(); App.toast('Premium restaurado ⭐'); } else App.toast('Nenhuma assinatura ativa encontrada.'); });
+    gate.innerHTML = '<div class="gate-card">' + html + '</div>';
+    renderGoogleButton($('gsiBtn'));
+    on('gSub', subscribe);
+    on('gRefresh', async () => { await refreshPremium(); if(status() !== 'premium') App.toast('Nenhuma assinatura ativa encontrada.'); });
+    on('gExport', App.exportData);
+    on('gOut', signOut);
   }
 
-  /* ---------- banners ---------- */
   function renderBanner(){
     const b = $('trialBanner'); if(!b) return;
-    const st = status();
-    if(st === 'trial'){
-      const d = trialDaysLeft();
-      b.hidden = false;
-      b.className = 'trial-banner' + (d <= 2 ? ' urgent' : '');
-      b.innerHTML = '<span>⭐ Premium grátis: <b>' + d + ' dia' + (d>1?'s':'') + '</b> restante' + (d>1?'s':'') + '</span><button id="bannerSub">Ver planos</button>';
-      on('bannerSub', () => openPaywall('geral'));
-    }else if(st === 'free' && store.get(ENDED_DISMISS_KEY) !== user.id){
-      b.hidden = false;
-      b.className = 'trial-banner';
-      b.innerHTML = '<span>Seu teste Premium acabou. O app continua grátis 💜</span><button id="bannerSub">Ver planos</button><button class="x" id="bannerX" aria-label="fechar">×</button>';
-      on('bannerSub', () => openPaywall('geral'));
-      on('bannerX', () => { store.set(ENDED_DISMISS_KEY, user.id); renderBanner(); });
-    }else{
-      b.hidden = true;
-    }
+    if(status() !== 'trial'){ b.hidden = true; return; }
+    const d = trialDaysLeft();
+    b.hidden = false;
+    b.className = 'trial-banner' + (d <= 2 ? ' urgent' : '');
+    b.innerHTML = '<span>⏳ Teste grátis: <b>' + d + ' dia' + (d>1?'s':'') + '</b> restante' + (d>1?'s':'') + '</span><button id="bannerSub">Assinar</button>';
+    on('bannerSub', () => App.switchTab('conta'));
   }
 
-  /* ---------- conta ---------- */
   function ago(ts){
     if(!ts) return 'nunca';
     const m = Math.round((Date.now()-ts)/60000);
@@ -393,34 +319,24 @@
     const box = $('acctBox'); if(!box) return;
     const st = status();
     box.hidden = false;
-    if(st === 'dev'){
+    if(st === 'free'){
       box.innerHTML = '<div class="profile"><span class="pfp">' + USER_SVG + '</span><div><b>Visitante</b><small>Seus dados ficam salvos neste aparelho</small></div></div>' +
         '<button class="btn-ghost" style="width:100%" disabled>Entrar com Google — em breve</button>';
       return;
     }
-    if(st === 'guest'){
-      box.innerHTML = '<div class="profile"><span class="pfp">' + USER_SVG + '</span><div><b>Visitante</b><small>Seus dados estão só neste aparelho</small></div></div>' +
-        '<div class="plan"><div><b>Entre com o Google</b><small>Salve seus dados na nuvem e ganhe ' + C.TRIAL_DAYS + ' dias de Premium grátis</small></div></div>' +
-        '<div class="gsi gsi-slot" id="acctLogin"></div>';
-      renderGoogleButton($('acctLogin'));
-      return;
-    }
+    if(!user){ box.innerHTML = ''; return; }
     const avatar = user.picture
       ? '<img class="pfp" src="' + esc(user.picture) + '" alt="" referrerpolicy="no-referrer">'
       : '<span class="pfp">' + esc((user.name||'?').charAt(0).toUpperCase()) + '</span>';
     let plan;
     if(st === 'premium'){
-      const p = premiumInfo();
-      plan = '<div class="plan premium"><div><b>⭐ Fôlego Premium</b><small>' + (p.sku === C.PLAY_SKU_ANUAL ? 'plano anual' : 'plano mensal') + ' · renova em ' + new Date(p.expiresAt).toLocaleDateString('pt-BR') + '</small></div>' +
+      plan = '<div class="plan premium"><div><b>⭐ Fôlego Premium</b><small>assinatura ativa</small></div>' +
         '<a class="btn-ghost" href="' + manageUrl() + '" target="_blank" rel="noopener">Gerenciar</a></div>';
-    }else if(st === 'trial'){
-      const d = trialDaysLeft(); const pct = Math.round((1 - d/C.TRIAL_DAYS)*100);
-      plan = '<div class="plan premium"><div><b>⭐ Premium grátis</b><small>' + d + ' de ' + C.TRIAL_DAYS + ' dias restantes</small></div>' +
-        '<button class="btn-primary" id="aSub">Ver planos</button></div>' +
-        '<div class="bar" style="margin-top:10px"><span style="width:' + pct + '%"></span></div>';
     }else{
-      plan = '<div class="plan"><div><b>Plano grátis</b><small>Premium a partir de ' + esc(monthlyEquivalent() || prices[C.PLAY_SKU]) + '/mês</small></div>' +
-        '<button class="btn-primary" id="aSub">Ver planos</button></div>';
+      const d = trialDaysLeft(); const pct = Math.round((1 - d/C.TRIAL_DAYS)*100);
+      plan = '<div class="plan"><div><b>Teste grátis</b><small>' + d + ' de ' + C.TRIAL_DAYS + ' dias restantes</small></div>' +
+        '<button class="btn-primary" id="aSub"' + (busy?' disabled':'') + '>Assinar</button></div>' +
+        '<div class="bar" style="margin-top:10px"><span style="width:' + pct + '%"></span></div>';
     }
     const s = syncInfo();
     const syncTxt = syncing ? 'Sincronizando…'
@@ -429,7 +345,7 @@
       plan +
       '<div class="setrow" style="margin-top:12px; border-top:none"><span>☁️ ' + syncTxt + '</span><button class="btn-ghost" id="aSync"' + (syncing?' disabled':'') + '>Sincronizar</button></div>' +
       '<div class="btnrow" style="margin-top:8px"><button class="btn-ghost" id="aOut">Sair</button><button class="btn-ghost danger" id="aDel">Excluir conta</button></div>';
-    on('aSub', () => openPaywall('geral'));
+    on('aSub', subscribe);
     on('aOut', signOut);
     on('aDel', deleteAccount);
     on('aSync', async () => {
@@ -457,37 +373,24 @@
 
   function render(){
     document.documentElement.dataset.plan = status();
-    renderUserBtn(); renderBanner(); renderAccount(); renderPaywall();
-    App.refreshPlan();
-  }
-
-  /* ---------- feedback ---------- */
-  async function sendFeedback(message, context){
-    A.track('feedback_enviado');
-    if(!sb) return false;
-    try{
-      const {error} = await sb.from('feedback').insert({user_id: user ? user.id : null, message: String(message).slice(0,2000), context: context||{}});
-      return !error;
-    }catch(e){ return false; }
+    renderUserBtn(); renderGate(); renderBanner(); renderAccount();
   }
 
   /* ---------- fluxo ---------- */
   async function afterSignedIn(){
     let reloading = false;
-    try{ reloading = await reconcile(); }catch(e){ console.error(e); A.captureError(e, {fonte:'sincronizacao'}); }
+    try{ reloading = await reconcile(); }catch(e){ console.error(e); }
     if(reloading) return;
     render();
     refreshPremium();
+    if(status() === 'trial' || status() === 'premium') App.maybeOnboard();
   }
 
   async function boot(){
-    App.setPlan({loginAvailable: ENABLED, isPremium, openPaywall, sendFeedback, storeUrl: C.PLAY_PACKAGE ? 'https://play.google.com/store/apps/details?id=' + encodeURIComponent(C.PLAY_PACKAGE) : ''});
     App.onSave(onLocalSave);
     App.onTab(tab => { if(tab === 'conta') renderAccount(); });
-    App.onSheetClose(() => { paywallFeature = null; });
     render();
-    App.maybeOnboard();
-    if(!ENABLED) return;
+    if(!ENABLED){ App.maybeOnboard(); return; }
 
     initGsi();
     initBilling();
@@ -501,7 +404,7 @@
       await initSupabase();
       const {data:{session}} = await sb.auth.getSession();
       if(session){
-        setUser(session.user); A.identify(user.id);
+        setUser(session.user);
         await loadProfile().catch(()=>{});
         await afterSignedIn();
       }else if(user){
@@ -509,10 +412,12 @@
         render();
       }
     }catch(e){
-      render(); // offline: segue com a última situação conhecida (em cache)
+      // Offline: segue com a última situação conhecida (usuário, teste e assinatura em cache).
+      render();
+      if(status() === 'trial' || status() === 'premium') App.maybeOnboard();
     }
   }
 
   boot();
-  window.FolegoAccount = {status, isPremium, subscribe, openPaywall, client: () => sb, user: () => user};
+  window.FolegoAccount = {status, subscribe};
 })();
