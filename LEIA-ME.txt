@@ -1,58 +1,108 @@
-FÔLEGO — COMO COLOCAR NA GOOGLE PLAY
-=====================================
+FÔLEGO — DO CÓDIGO À GOOGLE PLAY (COM LOGIN GOOGLE E ASSINATURA)
+=================================================================
 
-Este pacote já é um app instalável (PWA) completo. Siga os 4 passos.
+O app é um PWA (site instalável) empacotado como app Android (TWA).
+Ele já está hospedado no GitHub Pages: https://walicard56.github.io
 
-Arquivos desta pasta (NÃO renomeie):
-  index.html .............. o app
-  manifest.webmanifest .... identidade do app (nome, ícone, cores)
-  sw.js ................... funcionamento offline
-  icon-192.png / icon-512.png ... ícones do app
-  privacy.html ............ política de privacidade (o Google exige)
+Arquivos:
+  index.html ............ o app
+  config.js ............. *** ÚNICO arquivo que você precisa editar ***
+  account.js ............ login Google, teste grátis, assinatura e backup no Drive
+  manifest.webmanifest .. identidade do app (nome, ícone, cores)
+  sw.js ................. funcionamento offline
+  privacy.html / termos.html .. política de privacidade e termos (Google exige)
+  .well-known/assetlinks.json . liga o site ao app Android (tira a barra de endereço)
+
+Como funciona a monetização:
+  - A pessoa entra com a conta Google  -> ganha 7 dias grátis (sem cartão).
+  - No fim do teste aparece a tela de assinatura: R$ 9,99/mês pela Google Play.
+  - Cobrança, renovação, cancelamento e reembolso: tudo pela Google Play.
+  - Enquanto GOOGLE_CLIENT_ID estiver vazio no config.js, o app fica em
+    "modo livre" (sem login e sem cobrança) — bom para testar o visual.
 
 
-PASSO 1 — HOSPEDAR (grátis)
----------------------------
-O app precisa de um endereço na internet (https). O jeito mais fácil:
-  1. Entre em  https://app.netlify.com/drop
-  2. Arraste ESTA PASTA inteira para a página.
-  3. Em segundos você recebe um link, ex.: https://seu-app.netlify.app
-  (Alternativas gratuitas: GitHub Pages, Vercel, Cloudflare Pages.)
-
-Guarde dois endereços:
-  - o app:      https://seu-app.netlify.app
-  - a privacidade: https://seu-app.netlify.app/privacy.html
+PASSO 1 — CRIAR O LOGIN COM GOOGLE (grátis)
+-------------------------------------------
+  1. Acesse https://console.cloud.google.com e crie um projeto "Folego".
+  2. Menu "APIs e serviços" > "Biblioteca" > ative "Google Drive API".
+  3. "Tela de permissão OAuth" (Google Auth Platform):
+       - Tipo: Externo. Nome: Fôlego. E-mail de suporte: o seu.
+       - Domínio autorizado: walicard56.github.io
+       - Links: https://walicard56.github.io/privacy.html e /termos.html
+       - Escopos: email, profile, openid e .../auth/drive.appdata
+       - Publique o app (status "Em produção").
+  4. "Credenciais" > "Criar credenciais" > "ID do cliente OAuth":
+       - Tipo: Aplicativo da Web
+       - Origens JavaScript autorizadas: https://walicard56.github.io
+  5. Copie o ID (termina em .apps.googleusercontent.com) e cole em
+     config.js no campo GOOGLE_CLIENT_ID. Faça commit/push.
 
 
 PASSO 2 — TESTAR NO CELULAR
 ---------------------------
-Abra o link do app no Chrome do Android. No menu (⋮) deve aparecer
-"Instalar app" / "Adicionar à tela inicial". Instale e confira se abre
-com ícone próprio, em tela cheia e funcionando sem internet.
+Abra https://walicard56.github.io no Chrome do Android. Deve aparecer a
+tela "Continuar com o Google". Entre, confira a aba "Conta" (dias de teste,
+backup no Drive) e instale pelo menu (⋮) > "Instalar app".
 
 
-PASSO 3 — GERAR O PACOTE ANDROID (AAB)
---------------------------------------
-  1. Entre em  https://www.pwabuilder.com
-  2. Cole o link do app e clique em "Start".
-  3. Ele analisa o PWA. Vá em "Package for stores" > Android.
-  4. Baixe o pacote. Vem um arquivo .aab (é o que a Play Store aceita)
-     e um arquivo de assinatura (signing key) — GUARDE a chave em local
-     seguro; você vai precisar dela para TODAS as atualizações futuras.
+PASSO 3 — CONTA DE DESENVOLVEDOR E PERFIL DE PAGAMENTOS
+-------------------------------------------------------
+  1. https://play.google.com/console  (taxa única de US$ 25).
+  2. Verificação de identidade (documento + cartão no seu nome).
+  3. Para vender assinaturas: Configurações > "Perfil de pagamentos"
+     (dados bancários e fiscais). Sem isso não dá para criar a assinatura.
 
 
-PASSO 4 — PUBLICAR NO GOOGLE PLAY
----------------------------------
-  1. Crie a conta em  https://play.google.com/console  (taxa única US$ 25).
-  2. Faça a verificação de identidade (documento + cartão no seu nome).
-  3. "Criar app" > preencha nome (Fôlego), idioma, tipo (app, gratuito).
-  4. Envie o arquivo .aab em um TESTE FECHADO primeiro.
-     - Conta pessoal criada após 13/11/2023 precisa de ~12 testadores
-       rodando o app por 14 dias seguidos antes de liberar em produção.
-  5. Preencha a ficha da loja:
-     - ícone (use o icon-512.png), screenshots do celular, descrição
-     - link da política de privacidade (o /privacy.html do Passo 1)
-     - classificação de conteúdo (responda o questionário)
-  6. Depois do teste, envie para produção e aguarde a revisão (dias).
+PASSO 4 — GERAR O PACOTE ANDROID (AAB) NO PWABUILDER
+----------------------------------------------------
+  1. https://www.pwabuilder.com > cole https://walicard56.github.io > Start.
+  2. "Package for stores" > Android > "Options":
+       - Package ID: io.github.walicard56.twa  (o mesmo do config.js)
+       - App name: Fôlego
+       - Marque "Enable Play Billing"  (OBRIGATÓRIO para a assinatura)
+  3. Baixe o .zip. Ele traz o .aab e a chave de assinatura (signing.keystore
+     + senhas). GUARDE A CHAVE E AS SENHAS: sem elas não há atualização.
 
-Pronto. Dúvida em qualquer passo, é só perguntar.
+
+PASSO 5 — CRIAR O APP E A ASSINATURA NO PLAY CONSOLE
+----------------------------------------------------
+  1. "Criar app" > Fôlego, português (Brasil), App, Gratuito
+     (é gratuito para baixar; a cobrança é a assinatura dentro do app).
+  2. Envie o .aab em "Teste interno" (libera o menu de Monetização).
+  3. Monetizar > Produtos > Assinaturas > "Criar assinatura":
+       - ID do produto: folego_premium_mensal  (igual ao PLAY_SKU do config.js)
+       - Plano básico: renovação automática, mensal, preço R$ 9,99
+       - Ative o plano básico.
+     (O teste de 7 dias já é feito pelo próprio app. Não crie oferta de
+      teste grátis na Play, senão a pessoa ganha dois testes.)
+  4. Configuração > Integridade do app > "Assinatura de apps": copie a
+     "Impressão digital do certificado SHA-256" e cole em
+     .well-known/assetlinks.json no lugar de COLE_AQUI... Faça push.
+     (Confira em: https://walicard56.github.io/.well-known/assetlinks.json)
+  5. Configuração > "Teste de licença": adicione seu Gmail para testar a
+     compra sem ser cobrado.
+
+
+PASSO 6 — FICHA DA LOJA E PUBLICAÇÃO
+------------------------------------
+  - Ícone 512px (icon-512.png), banner 1024x500, 2+ screenshots do celular.
+  - Política de privacidade: https://walicard56.github.io/privacy.html
+  - "Segurança dos dados": declare nome, e-mail e ID (coletados para
+    "Gerenciamento da conta"), dados financeiros armazenados apenas no
+    aparelho / Drive do usuário, criptografados em trânsito, com opção de
+    exclusão (Conta > Excluir conta).
+  - "Exclusão de conta": informe o caminho no app e o link da política.
+  - Classificação de conteúdo, público-alvo (18+), sem anúncios.
+  - Conta pessoal criada após 13/11/2023: teste fechado com 12 testadores
+    por 14 dias antes de liberar produção.
+  - Depois: Produção > enviar para revisão.
+
+
+LIMITAÇÕES CONHECIDAS (versão sem servidor)
+-------------------------------------------
+  - O teste grátis é controlado no aparelho. Quem apagar os dados do app
+    pode ganhar um novo teste (o backup no Drive guarda a data original).
+    Para controle total, o próximo passo é um servidor (ex.: Firebase) que
+    registre o teste por conta e valide as compras na API da Google Play.
+  - A assinatura só pode ser comprada no app instalado pela Play Store
+    (exigência do Google). No navegador aparece o link para a loja.
