@@ -88,4 +88,14 @@ async function setupPage(page, { server, configured = true, billing = false, con
   return errors;
 }
 
-module.exports = { createServer, setupPage };
+/** Entra pela tela inicial, escolhe o plano e (no grátis) faz a configuração inicial. */
+async function entrar(page, { plano = 'gratis', salario = '3000' } = {}) {
+  await page.click('#gsiGate #fakeG');
+  await page.click(plano === 'assinar' ? '#chooseSub' : '#chooseFree');
+  if (plano !== 'assinar' && salario !== null) {
+    await page.fill('#sSalario', salario);
+    await page.click('#sGo');
+  }
+}
+
+module.exports = { createServer, setupPage, entrar };

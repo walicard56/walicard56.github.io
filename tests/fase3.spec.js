@@ -1,6 +1,6 @@
 // Renda segura, meta de reserva sugerida, área MEI e Lumi com IA.
 const { test, expect } = require('@playwright/test');
-const { createServer, setupPage } = require('./helpers');
+const { createServer, setupPage, entrar } = require('./helpers');
 
 test.afterEach(async ({ page }) => { expect(page.errors).toEqual([]); });
 
@@ -62,11 +62,7 @@ test('Lumi responde usando o resumo financeiro (Premium em teste)', async ({ pag
   server.fnHandlers.lumi = (body) => { pedido = body; return { reply: 'Sim! Sua sobra é de R$ ' + body.summary.sobra_do_mes + '.', remaining: 14 }; };
   page.errors = await setupPage(page, { server });
   await page.goto('/');
-  await page.fill('#sSalario', '3000');
-  await page.click('#sGo');
-  await page.click('#userBtn');
-  await page.click('#acctLogin #fakeG');
-  await page.click('nav [data-tab=mes]');
+  await entrar(page);
   await page.click('#lumiOpen');
   await page.click('#lumiChips button >> nth=0');
   await expect(page.locator('#lumiMsgs .lmsg.bot').last()).toHaveText('Sim! Sua sobra é de R$ 3000.');
@@ -75,11 +71,12 @@ test('Lumi responde usando o resumo financeiro (Premium em teste)', async ({ pag
   expect(JSON.stringify(pedido.summary)).not.toContain('ana@example.com');
 });
 
-test('Lumi sem conta abre a oferta do Premium', async ({ page }) => {
-  page.errors = await setupPage(page, { server: createServer() });
+test('Lumi no plano grátis abre a oferta do Premium', async ({ page }) => {
+  const server = createServer();
+  server.trialAgoDays = 10;
+  page.errors = await setupPage(page, { server });
   await page.goto('/');
-  await page.fill('#sSalario', '3000');
-  await page.click('#sGo');
+  await entrar(page);
   await page.click('#lumiOpen');
   await expect(page.locator('#paywall')).toHaveClass(/open/);
   await expect(page.locator('#paywall')).toContainText('Conversar com a Lumi é Premium');

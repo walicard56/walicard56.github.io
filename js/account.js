@@ -22,6 +22,9 @@
   const SKUS = [C.PLAY_SKU, C.PLAY_SKU_ANUAL].filter(Boolean);
   const USER_KEY = 'folego-user', PROFILE_KEY = 'folego-profile', PREM_KEY = 'folego-premium', SYNC_KEY = 'folego-sync';
   const ENDED_DISMISS_KEY = 'folego-trial-ended-dismissed';
+  const welcomedKey = () => 'folego-welcomed-' + user.id;
+  const welcomed = () => !!user && !!store.get(welcomedKey());
+  let onboardAfterPaywall = false;
 
   const store = {
     get(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } },
@@ -108,9 +111,9 @@
       App.haptic(15);
       const wasPaywall = !!paywallFeature;
       closePaywall();
+      if(status() === 'premium') store.set(welcomedKey(), true);
       await afterSignedIn();
-      if(status() === 'trial') App.toast((wasPaywall ? 'Pronto! ' : 'Bem-vindo, ' + user.name + '! ') + 'Você tem ' + trialDaysLeft() + ' dias de Premium grátis ⭐');
-      else App.toast('Bem-vindo, ' + user.name + '! Seus dados agora ficam salvos na nuvem ☁️');
+      if(welcomed()) App.toast('Bem-vindo de volta, ' + user.name + '! ☁️');
     }catch(e){
       console.error(e); A.track('login_erro'); A.captureError(e, {fonte:'login'});
       App.toast('Não foi possível entrar. Tente de novo.');
@@ -181,6 +184,7 @@
     }finally{ syncing = false; renderAccount(); }
   }
   function applyRemote(remote){
+    store.set(welcomedKey(), true);
     store.set(SYNC_KEY, {uid:user.id, syncedAt:Date.parse(remote.updated_at), dirty:false});
     App.replaceState(remote.state); // recarrega a página
   }
@@ -459,8 +463,53 @@
 
   function render(){
     document.documentElement.dataset.plan = status();
-    renderUserBtn(); renderBanner(); renderAccount(); renderPaywall();
+    renderUserBtn(); renderGate(); renderBanner(); renderAccount(); renderPaywall();
     App.refreshPlan();
+  }
+
+  /* ---------- tela de entrada: login obrigatório e escolha do plano ---------- */
+  function chooseFree(){
+    store.set(welcomedKey(), true);
+    A.track('plano_escolhido', {plano: 'gratis', teste_ativo: status() === 'trial'});
+    App.haptic(10); render(); App.maybeOnboard();
+    if(status() === 'trial') App.toast('Aproveite seus ' + trialDaysLeft() + ' dias de Premium grátis ⭐');
+  }
+  function chooseSubscribe(){
+    store.set(welcomedKey(), true);
+    A.track('plano_escolhido', {plano: 'assinar'});
+    onboardAfterPaywall = true; render(); openPaywall('geral');
+  }
+  function renderGate(){
+    const gate = $('gate'); if(!gate) return;
+    const showLogin = ENABLED && !user, showChoice = ENABLED && !!user && !welcomed();
+    gate.hidden = !(showLogin || showChoice);
+    document.body.classList.toggle('locked', !gate.hidden);
+    if(gate.hidden){ gate.innerHTML = ''; return; }
+    if(showLogin){
+      if(gate.dataset.step === 'login' && !signingIn && $('gsiGate') && $('gsiGate').childElementCount) return;
+      gate.dataset.step = 'login';
+      gate.innerHTML = '<div class="gate-card">' +
+        '<div class="gate-hero"><div class="gate-logo"><svg viewBox="0 0 24 24"><path d="M4 14c3-6 7-6 8-3s4 3 8-3"/><path d="M4 20h16"/></svg></div>' +
+        '<h2>Fôlego</h2><p>O controle financeiro de quem vive de renda variável.</p></div>' +
+        '<ul class="feat">' + [['📊','Saiba quanto sobra no mês, mesmo com comissão'],['🛟','Monte sua reserva de emergência'],['💳','Saia das dívidas com um plano'],['☁️','Seus dados salvos na sua conta Google']]
+          .map(f => '<li><span>'+f[0]+'</span>'+f[1]+'</li>').join('') + '</ul>' +
+        '<div class="gsi gsi-slot" id="gsiGate"></div>' +
+        '<p class="fine">Ao entrar você ganha <b>' + C.TRIAL_DAYS + ' dias de Premium grátis</b>, sem cartão.</p>' +
+        '<p class="fine"><a href="privacy.html" target="_blank">Privacidade</a> · <a href="termos.html" target="_blank">Termos de uso</a></p></div>';
+      renderGoogleButton($('gsiGate'));
+      return;
+    }
+    gate.dataset.step = 'choice';
+    const trial = status() === 'trial', d = trialDaysLeft();
+    gate.innerHTML = '<div class="gate-card">' +
+      '<div class="gate-hero"><div class="gate-logo">👋</div><h2>Olá, ' + esc(user.name) + '!</h2><p>Como você quer usar o Fôlego?</p></div>' +
+      '<button class="choice premium" id="chooseSub"><span class="ch-top"><b>⭐ Premium</b><span class="ch-price">a partir de ' + esc(monthlyEquivalent() || prices[C.PLAY_SKU]) + '/mês</span></span>' +
+        '<small>Histórico e relatórios, orçamento por categoria, dívidas ilimitadas, renda segura, área MEI, Lumi com IA e importação de extrato.</small></button>' +
+      '<button class="choice" id="chooseFree"><span class="ch-top"><b>Básico grátis</b><span class="ch-price">R$ 0</span></span>' +
+        '<small>' + (trial ? 'Começa com <b>' + d + ' dias de Premium de presente</b>. Depois, continua grátis com o essencial: mês, reserva, 1 dívida e dicas da Lumi.' : 'Mês, ganhos e gastos, reserva, 1 dívida e dicas da Lumi. Grátis para sempre.') + '</small></button>' +
+      '<p class="fine">Você pode assinar ou cancelar quando quiser, em Conta e ajustes.</p></div>';
+    on('chooseSub', chooseSubscribe);
+    on('chooseFree', chooseFree);
   }
 
   /* ---------- feedback ---------- */
@@ -480,16 +529,17 @@
     if(reloading) return;
     render();
     refreshPremium();
+    if(welcomed()) App.maybeOnboard();
   }
 
   async function boot(){
-    App.setPlan({loginAvailable: ENABLED, isPremium, openPaywall, sendFeedback, storeUrl: STORE_URL});
+    App.setPlan({loginAvailable: false, isPremium, openPaywall, sendFeedback, storeUrl: STORE_URL});
     App.onSave(onLocalSave);
     App.onTab(tab => { if(tab === 'conta') renderAccount(); });
-    App.onSheetClose(() => { paywallFeature = null; });
+    App.onSheetClose(() => { paywallFeature = null; if(onboardAfterPaywall){ onboardAfterPaywall = false; setTimeout(App.maybeOnboard, 300); } });
     render();
-    App.maybeOnboard();
-    if(!ENABLED) return;
+    if(!ENABLED){ App.maybeOnboard(); return; }
+    if(welcomed()) App.maybeOnboard();
 
     initGsi();
     initBilling();

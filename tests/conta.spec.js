@@ -1,6 +1,6 @@
-// Conta Google + Supabase: login opcional, sincronização entre aparelhos e exclusão.
+// Conta Google + Supabase: sincronização entre aparelhos, sair e excluir.
 const { test, expect } = require('@playwright/test');
-const { createServer, setupPage } = require('./helpers');
+const { createServer, setupPage, entrar } = require('./helpers');
 
 async function phone(browser, server, opts = {}) {
   const ctx = await browser.newContext();
@@ -9,46 +9,38 @@ async function phone(browser, server, opts = {}) {
   await page.goto('/');
   return page;
 }
-async function login(page) {
-  if (!(await page.locator('#view-conta').evaluate((el) => el.classList.contains('active')))) await page.click('#userBtn');
-  await page.click('#acctLogin #fakeG');
-}
 
-test('usa sem conta; ao entrar, os dados sobem para a nuvem', async ({ browser }) => {
+test('depois do login e da configuração, os dados sobem para a nuvem', async ({ browser }) => {
   const server = createServer();
   const a = await phone(browser, server);
-  await a.fill('#sSalario', '3200');
-  await a.click('#sGo');
+  await entrar(a, { salario: '3200' });
   await expect(a.locator('#sobraTotal')).toHaveText('R$ 3.200');
-  await login(a);
   await expect.poll(() => server.DB.user_data.u1 && server.DB.user_data.u1.state.months).toBeTruthy();
   expect(a.errors).toEqual([]);
 });
 
-test('celular novo: "já uso o Fôlego" baixa os dados da conta', async ({ browser }) => {
+test('celular novo: entrar baixa os dados da conta, sem perguntar o plano de novo', async ({ browser }) => {
   const server = createServer();
   const a = await phone(browser, server);
-  await a.fill('#sSalario', '4100');
-  await a.click('#sGo');
-  await login(a);
+  await entrar(a, { salario: '4100' });
   await expect.poll(() => !!server.DB.user_data.u1).toBe(true);
 
   const b = await phone(browser, server);
-  await b.click('#sLogin');
-  await login(b);
+  await b.click('#gsiGate #fakeG');
   await expect(b.locator('#sobraTotal')).toHaveText('R$ 4.100');
+  await expect(b.locator('#gate')).toBeHidden();
+  await expect(b.locator('#setupSheet')).not.toHaveClass(/open/);
   expect(b.errors).toEqual([]);
 });
 
-test('excluir conta apaga os dados da nuvem', async ({ browser }) => {
+test('excluir conta apaga os dados e volta para a tela de login', async ({ browser }) => {
   const server = createServer();
   const a = await phone(browser, server);
-  await a.fill('#sSalario', '1000');
-  await a.click('#sGo');
-  await login(a);
+  await entrar(a, { salario: '1000' });
   await expect.poll(() => !!server.DB.user_data.u1).toBe(true);
+  await a.click('#userBtn');
   await a.click('#aDel');
   await expect.poll(() => !!server.DB.user_data.u1).toBe(false);
-  await expect(a.locator('#acctLogin')).toBeVisible();
+  await expect(a.locator('#gate #gsiGate')).toBeVisible();
   expect(a.errors).toEqual([]);
 });

@@ -1,7 +1,7 @@
 // Importação de extrato OFX/CSV: prévia, categorias, desmarcados, duplicatas.
 const path = require('path');
 const { test, expect } = require('@playwright/test');
-const { createServer, setupPage } = require('./helpers');
+const { createServer, setupPage, entrar } = require('./helpers');
 const fx = (f) => path.join(__dirname, 'fixtures', f);
 
 test.afterEach(async ({ page }) => { expect(page.errors).toEqual([]); });
@@ -71,7 +71,11 @@ test('CSV do Inter: trocar categoria e incluir uma renda extra', async ({ page }
 
 test('importar extrato é Premium', async ({ page }) => {
   const server = createServer();
-  await start(page, { server });
+  server.trialAgoDays = 10;
+  page.errors = await setupPage(page, { server });
+  await page.goto('/');
+  await entrar(page);
+  await page.click('#userBtn');
   await page.click('#bankImportBtn');
   await expect(page.locator('#paywall')).toHaveClass(/open/);
   await expect(page.locator('#paywall')).toContainText('Importar extrato é Premium');
