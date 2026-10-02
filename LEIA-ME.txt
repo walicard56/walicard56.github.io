@@ -177,6 +177,24 @@ O app avisa 1 dia antes e no dia do vencimento das contas fixas que têm
      cron-lembretes.sql (o select net.http_post...) manualmente.
 
 
+PASSO 5D — LUMI COM IA (Premium)
+--------------------------------
+A conversa "Converse com a Lumi" usa a IA Claude, da Anthropic.
+  1. Crie a conta em https://console.anthropic.com, adicione créditos
+     (Billing) e crie uma API key (Settings > API keys).
+  2. Configure e publique:
+       npx supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+       npx supabase functions deploy lumi
+     Opcional: LUMI_DAILY_LIMIT (perguntas por pessoa por dia, padrão 15).
+  3. Custo: modelo claude-opus-5-5 com esforço "low". Cada pergunta manda
+     o resumo do mês (~2 mil tokens) e recebe uma resposta curta: algo na
+     faixa de US$ 0,01 a 0,03 por pergunta (confira no painel de uso da
+     Anthropic). Com 15 perguntas/dia, um usuário que usa muito custa bem
+     menos que a assinatura, mas acompanhe o painel no começo e baixe o
+     LUMI_DAILY_LIMIT se precisar.
+  4. Em Console > Settings > Limits, defina um limite de gasto mensal.
+
+
 PASSO 6 — FICHA DA LOJA E PUBLICAÇÃO
 ------------------------------------
   - Ícone 512px (icon-512.png), banner 1024x500, 2+ screenshots do celular.

@@ -60,6 +60,7 @@
         <input id="askVal" type="number" inputmode="decimal" placeholder="0" aria-label="valor"><span>?</span>
       </div>
       <p class="askres" id="askRes"></p>
+      <button class="lumi-open" id="lumiOpen">💬 Converse com a Lumi <span class="tag-premium">⭐</span></button>
     </div>
 
     <section id="billsCard" hidden></section>
@@ -76,6 +77,9 @@
         <span class="status" id="fixaStatus">—</span>
       </div>
     </div>
+
+    <section id="rendaCard"></section>
+    <section id="meiCard" hidden></section>
 
     <section>
       <div class="sec-head"><h2>Ganhos</h2><span class="sec-total num" id="totalGanhos">R$ 0</span></div>
@@ -144,6 +148,7 @@
       <div class="bar pos" style="margin:12px 0 6px"><span id="resBar"></span></div>
       <div class="sec-head" style="margin:0"><span class="hint" id="resPct">0%</span><span class="hint" id="resFalta">—</span></div>
     </div>
+    <section id="resSugerida" hidden></section>
     <section>
       <div class="sec-head"><h2>Movimentar reserva</h2></div>
       <div class="chips">
@@ -187,6 +192,8 @@
         <div class="seg" id="themeSeg"><button data-theme-opt="auto">Auto</button><button data-theme-opt="light">Claro</button><button data-theme-opt="dark">Escuro</button></div></div>
       <div class="setrow"><span>Vibrar ao tocar</span>
         <label class="switch" style="margin:0"><input type="checkbox" id="toggleHaptic"><span class="track"></span></label></div>
+      <div class="setrow"><span>Sou MEI<small class="hint" style="display:block">mostra a área MEI: DAS e limite de faturamento</small></span>
+        <label class="switch" style="margin:0"><input type="checkbox" id="toggleMei"><span class="track"></span></label></div>
       <div class="setrow" id="pushRow"><span>Lembrete de contas a pagar<small class="hint" style="display:block">notificação 1 dia antes e no dia do vencimento</small></span>
         <label class="switch" style="margin:0"><input type="checkbox" id="togglePush"><span class="track"></span></label></div>
       <div class="setrow" id="statsRow"><span>Enviar estatísticas anônimas<small class="hint" style="display:block">ajuda a melhorar o app; nunca inclui valores</small></span>
@@ -249,6 +256,15 @@
   <button class="sheet-x" data-close-sheet aria-label="fechar">×</button>
   <div id="budgetBody"></div>
 </div>
+<div class="sheet" id="lumiSheet" role="dialog" aria-label="Conversa com a Lumi">
+  <div class="grab"></div>
+  <button class="sheet-x" data-close-sheet aria-label="fechar">×</button>
+  <h3>💬 Lumi</h3>
+  <div class="lmsgs" id="lumiMsgs" aria-live="polite"></div>
+  <div class="qchips" id="lumiChips"></div>
+  <div class="lumi-in"><input class="field-in" id="lumiInput" maxlength="600" placeholder="Pergunte sobre seu dinheiro…" aria-label="pergunta"><button class="btn-primary" id="lumiSend" aria-label="enviar">Enviar</button></div>
+  <p class="fine">A Lumi usa IA e pode errar. Confira decisões importantes.</p>
+</div>
 <div class="sheet" id="reviewSheet" role="dialog" aria-label="Avaliação">
   <div class="grab"></div>
   <div id="reviewBody"></div>
@@ -266,6 +282,8 @@
 <script src="js/app.js"></script>
 <script src="js/account.js"></script>
 <script src="js/relatorios.js"></script>
+<script src="js/inteligencia.js"></script>
 <script src="js/lembretes.js"></script>
+<script src="js/lumi.js"></script>
 </body>
 </html>
