@@ -38,6 +38,11 @@ window.FOLEGO_CONFIG = {
   // Lembretes por notificação: chave pública VAPID (veja o LEIA-ME, Passo 5C).
   VAPID_PUBLIC_KEY: '',
 
+  // Anúncios para o plano grátis (Google AdSense). Deixe vazio para não mostrar.
+  // ADSENSE_CLIENT: 'ca-pub-0000000000000000'  |  ADSENSE_SLOT: '1234567890'
+  ADSENSE_CLIENT: '',
+  ADSENSE_SLOT: '',
+
   // Estatísticas de uso anônimas e erros (opcional): crie um projeto grátis em
   // https://posthog.com e cole a "Project API key" (começa com phc_).
   POSTHOG_KEY: '',

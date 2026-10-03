@@ -297,7 +297,8 @@
     renda: 'Renda segura é Premium',
     mei: 'A área MEI é Premium',
     lumi: 'Conversar com a Lumi é Premium',
-    importar: 'Importar extrato é Premium'
+    importar: 'Importar extrato é Premium',
+    anuncios: 'Use o Fôlego sem anúncios'
   };
   const BENEFITS = [
     ['📈','Histórico de todos os meses e relatórios por categoria'],
@@ -305,7 +306,8 @@
     ['💳','Dívidas e parcelamentos ilimitados'],
     ['🧮','Renda segura e área MEI'],
     ['🤖','Pergunte à Lumi: “posso comprar isso?”'],
-    ['🏦','Importe o extrato do banco']
+    ['🏦','Importe o extrato do banco'],
+    ['🚫','Sem anúncios']
   ];
   function monthlyEquivalent(){
     const raw = String(prices[C.PLAY_SKU_ANUAL]||'').replace(/[^\d,]/g,'').replace(',','.');

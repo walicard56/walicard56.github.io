@@ -282,6 +282,12 @@ body.sheet-open .toast.show{transform:translate(-50%,0)}
 .toast.show{opacity:1; transform:translate(-50%,0); pointer-events:auto}
 .toast button{background:none; border:none; color:#a596ff; font-family:inherit; font-weight:600; font-size:.85rem; cursor:pointer; padding:0}
 
+/* --- anúncio (plano grátis) --- */
+.ad-slot{padding:10px 12px 12px; min-height:150px; overflow:hidden}
+.ad-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:6px}
+.ad-head span{font-size:.66rem; letter-spacing:.06em; text-transform:uppercase; color:var(--muted)}
+.ad-slot .adsbygoogle{min-height:100px}
+
 /* --- convite para instalar --- */
 .install-banner{display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid color-mix(in srgb,var(--accent) 40%,var(--line)); border-radius:14px; padding:10px 10px 10px 12px; margin-bottom:12px}
 .install-banner .ib-ic{font-size:1.4rem}

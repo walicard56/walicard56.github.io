@@ -45,11 +45,12 @@ Ganha comissão, é MEI, autônomo, motorista de app ou freelancer? Então você
 • Área MEI: lembrete do DAS e limite de faturamento
 • Converse com a Lumi: "posso comprar um celular em 10x?"
 • Importe o extrato do banco
+• Sem anúncios
 
 O plano grátis é seu para sempre. O Premium custa R$ 9,99/mês ou R$ 79,90/ano (só R$ 6,66 por mês), com cobrança pela Google Play e cancelamento quando quiser.
 
 🔒 PRIVACIDADE
-Seus dados financeiros são só seus. Não vendemos dados e não mostramos anúncios.
+Seus dados financeiros são só seus. Não vendemos dados. O plano grátis tem um anúncio discreto; o Premium não tem anúncios.
 
 ## Categoria e tags
 - Categoria: Finanças
@@ -76,5 +77,5 @@ Fundo roxo (#4f46e5 → #7c6cff), logo à esquerda e o texto:
 
 ## Respostas prontas para avaliações
 - 5★: "Que bom que o Fôlego está ajudando! 💜 Se puder, conte para um amigo que também ganha comissão."
-- Reclamação de preço: "Obrigado pelo retorno! O plano grátis continua liberado para sempre, com mês, reserva e dívida. O Premium é opcional e ajuda a manter o app sem anúncios."
+- Reclamação de preço: "Obrigado pelo retorno! O plano grátis continua liberado para sempre, com mês, reserva e dívida. O Premium é opcional, tira os anúncios e ajuda a manter o app."
 - Bug: "Sentimos muito! Pode mandar detalhes pelo e-mail de suporte? Vamos corrigir rápido."
