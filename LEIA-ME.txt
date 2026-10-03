@@ -206,7 +206,7 @@ login ou pagamento, e some se o Google não tiver anúncio para mostrar.
   2. Crie o arquivo ads.txt na raiz do repositório com a linha que o
      AdSense mostrar, por exemplo:
        google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0
-     (me mande o seu "pub-..." que eu crio o arquivo)
+     (já criado: ads.txt com pub-2779913625636856)
   3. Depois de aprovado: Anúncios > Por bloco de anúncios > Anúncio
      gráfico (display), responsivo. Copie o data-ad-client (ca-pub-...) e o
      data-ad-slot (números) para config.js > ADSENSE_CLIENT e ADSENSE_SLOT.

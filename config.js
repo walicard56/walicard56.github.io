@@ -40,7 +40,7 @@ window.FOLEGO_CONFIG = {
 
   // Anúncios para o plano grátis (Google AdSense). Deixe vazio para não mostrar.
   // ADSENSE_CLIENT: 'ca-pub-0000000000000000'  |  ADSENSE_SLOT: '1234567890'
-  ADSENSE_CLIENT: '',
+  ADSENSE_CLIENT: 'ca-pub-2779913625636856',
   ADSENSE_SLOT: '',
 
   // Estatísticas de uso anônimas e erros (opcional): crie um projeto grátis em
