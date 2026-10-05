@@ -75,7 +75,7 @@ async function setupPage(page, { server, configured = true, billing = false, con
   await page.route(/posthog\.com/, (r) => r.fulfill({ status: 200, body: '{}' }));
   const cfg = configured
     ? { GOOGLE_CLIENT_ID: CID, SUPABASE_URL: 'https://x.supabase.co', SUPABASE_ANON_KEY: 'k', TRIAL_DAYS: 7,
-        PLAY_SKU: 'folego_premium_mensal', PLAY_SKU_ANUAL: 'folego_premium_anual', PLAY_PACKAGE: 'io.github.walicard56.twa', ...config }
+        PLAY_SKU: 'folego_premium_mensal', PLAY_SKU_ANUAL: 'folego_premium_anual', PLAY_PACKAGE: 'app.folego.financas', ...config }
     : { GOOGLE_CLIENT_ID: '', SUPABASE_URL: '', SUPABASE_ANON_KEY: '', ...config };
   await page.route('**/config.js', (r) => r.fulfill({ contentType: 'text/javascript', body: 'window.FOLEGO_CONFIG=' + JSON.stringify(cfg) + ';' }));
   await page.route('https://accounts.google.com/**', (r) => r.fulfill({ contentType: 'text/javascript', body: gsiStub }));

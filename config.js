@@ -28,8 +28,8 @@ window.FOLEGO_CONFIG = {
   PLAY_SKU: 'folego_premium_mensal',
   PLAY_SKU_ANUAL: 'folego_premium_anual',
 
-  // Nome do pacote Android gerado no PWABuilder (ex.: io.github.walicard56.twa).
-  PLAY_PACKAGE: 'io.github.walicard56.twa',
+  // Nome do pacote Android gerado no PWABuilder (ex.: app.folego.financas).
+  PLAY_PACKAGE: 'app.folego.financas',
 
   // Mude para true quando o app estiver publicado na Google Play. Antes disso,
   // os botões de assinar/avaliar não abrem a loja (a página ainda não existe).

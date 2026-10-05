@@ -126,5 +126,5 @@ test('com a loja publicada, assinar pelo navegador abre a página do app', async
   await expect(page.locator('#pwSub')).toHaveText('Assinar pelo app na Google Play');
   await page.evaluate(() => { window.__opened = []; window.open = (url) => { window.__opened.push(url); return null; }; });
   await page.click('#pwSub');
-  expect(await page.evaluate(() => window.__opened)).toEqual(['https://play.google.com/store/apps/details?id=io.github.walicard56.twa']);
+  expect(await page.evaluate(() => window.__opened)).toEqual(['https://play.google.com/store/apps/details?id=app.folego.financas']);
 });

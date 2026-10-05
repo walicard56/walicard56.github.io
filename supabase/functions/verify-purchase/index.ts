@@ -1,7 +1,7 @@
 // Valida assinaturas na Google Play Developer API e grava em public.subscriptions.
 // Secrets necessários (Supabase > Edge Functions > Secrets):
 //   GOOGLE_SERVICE_ACCOUNT  JSON completo da conta de serviço com acesso ao Play Console
-//   PLAY_PACKAGE            ex.: io.github.walicard56.twa
+//   PLAY_PACKAGE            ex.: app.folego.financas
 //   PLAY_SKUS               ex.: folego_premium_mensal,folego_premium_anual
 import { adminClient, cors, json, userFromRequest } from '../_shared/common.ts';
 

@@ -106,7 +106,7 @@ PASSO 4 — GERAR O PACOTE ANDROID (AAB) NO PWABUILDER
 ----------------------------------------------------
   1. https://www.pwabuilder.com > cole https://walicard56.github.io > Start.
   2. "Package for stores" > Android > "Options":
-       - Package ID: io.github.walicard56.twa  (o mesmo do config.js)
+       - Package ID: app.folego.financas  (o mesmo do config.js)
        - App name: Fôlego
        - Marque "Enable Play Billing"  (OBRIGATÓRIO para a assinatura)
   3. Baixe o .zip. Ele traz o .aab e a chave de assinatura (signing.keystore
@@ -148,7 +148,7 @@ Google reembolsa a compra em 3 dias.
   4. Instale as funções. No computador, com Node instalado:
        npx supabase login
        npx supabase link --project-ref SEU_PROJECT_REF
-       npx supabase secrets set PLAY_PACKAGE=io.github.walicard56.twa PLAY_SKUS=folego_premium_mensal,folego_premium_anual
+       npx supabase secrets set PLAY_PACKAGE=app.folego.financas PLAY_SKUS=folego_premium_mensal,folego_premium_anual
        npx supabase secrets set GOOGLE_SERVICE_ACCOUNT="$(cat caminho/da/chave.json)"
        npx supabase functions deploy verify-purchase
        npx supabase functions deploy delete-account
