@@ -13,6 +13,11 @@ Controle financeiro p/ comissionado, MEI e autônomo: saiba quanto sobra no mês
 
 Ganha comissão, é MEI, autônomo, motorista de app ou freelancer? Então você sabe: tem mês que sobra, tem mês que falta. O Fôlego é o controle financeiro feito para quem vive de renda variável.
 
+🎯 META DO MÊS: QUANTO FALTA?
+• Diga como você ganha (comissão, corridas ou serviços)
+• O Fôlego mostra quanto falta pra fechar o mês: "faltam R$ 600 = 30 corridas"
+• E quanto fazer por dia até o fim do mês
+
 💡 VEJA QUANTO SOBRA DE VERDADE
 • Sobra do mês com a comissão prevista e com a recebida
 • "Só com o salário fixo": descubra se suas contas dependem da comissão
@@ -49,6 +54,10 @@ Ganha comissão, é MEI, autônomo, motorista de app ou freelancer? Então você
 
 O plano grátis é seu para sempre. O Premium custa R$ 9,99/mês ou R$ 79,90/ano (só R$ 6,66 por mês), com cobrança pela Google Play e cancelamento quando quiser.
 
+🎁 INDIQUE E GANHE
+• Convide amigos pelo WhatsApp: vocês dois ganham 7 dias de Premium
+• Compartilhe suas conquistas em cartões pro Status e Stories (sem mostrar valores)
+
 🔒 PRIVACIDADE
 Seus dados financeiros são só seus. Não vendemos dados. O plano grátis tem um anúncio discreto; o Premium não tem anúncios.
 
@@ -62,7 +71,8 @@ reserva de emergência, dívidas, orçamento, planilha de gastos, finanças pess
 
 ## Capturas de tela (8 no máximo, 1080×1920)
 Faça no celular e coloque um título grande em cima de cada uma (Canva tem modelos grátis):
-1. Tela Mês com a Lumi — "Saiba quanto sobra, mesmo com comissão"
+1. Meta do mês — "Saiba quanto falta: em vendas, corridas ou serviços"
+1b. Tela Mês com a Lumi — "Saiba quanto sobra, mesmo com comissão"
 2. Cartões "Sobra do mês" × "Só com o salário" — "Suas contas dependem da comissão?"
 3. "Posso gastar?" respondido — "Pergunte antes de gastar"
 4. Lançamento rápido (+) aberto — "Anote um gasto em 3 segundos"

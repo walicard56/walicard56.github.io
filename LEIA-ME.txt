@@ -246,6 +246,18 @@ banco", o usuário Premium escolhe um arquivo OFX (quase todo banco exporta
 no internet banking) ou CSV (ex.: Nubank conta/cartão, Inter). O arquivo é
 lido no próprio celular; nada é enviado a servidor.
 
+CRESCIMENTO (já funciona, sem configurar nada além do banco)
+------------------------------------------------------------
+  - Meta do mês: quanto falta em vendas, corridas ou serviços (grátis).
+  - Indique e ganhe: rode o supabase/instalar-banco.sql de novo (inclui a
+    migração 20261006_indicacoes). Cada indicação dá +7 dias de Premium
+    para os dois; quem indica ganha até 12 vezes (84 dias).
+  - Cartões de conquista (mês no azul, dívida quitada, reserva) para o
+    Status/Stories, já com o link de convite.
+  - Prévia do link no WhatsApp/Instagram: og-image.png + tags no index.html.
+  - Acompanhe no PostHog: convite_aberto, convite_usado, compartilhar,
+    cartao_aberto, meta_tipo, sequencia.
+
 TESTES AUTOMÁTICOS
 ------------------
   A cada push, o GitHub roda os testes (aba Actions > "Testes").

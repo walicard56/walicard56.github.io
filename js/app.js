@@ -47,7 +47,8 @@ Object.keys(S.months).forEach(id=>{ if(id!==todayId && S.months[id].touched===fa
 })();
 if(!S.months[S.current]) S.current=S.months[todayId]?todayId:Object.keys(S.months)[0];
 if(!S.current||!S.months[S.current]){const s=seedMonth();s.touched=true;S.months[todayId]=s;S.current=todayId;}
-const saveHooks=[], computedHooks=[], launchHooks=[];
+const saveHooks=[], computedHooks=[], launchHooks=[], achievementHooks=[];
+const achieve=ev=>achievementHooks.forEach(f=>{try{f(ev);}catch(e){console.error(e);}});
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){} saveHooks.forEach(f=>{try{f();}catch(e){}});}
 
 const money=n=>'R$ '+Math.round(n).toLocaleString('pt-BR');
@@ -199,7 +200,7 @@ function buildDividas(){
     pay.addEventListener('click',()=>{
       if(+d.pagas>=+d.total) return;
       d.pagas=(+d.pagas||0)+1; buildDividas(); updateComputed(true); save(); haptic(15);
-      track('parcela_paga'); if(+d.pagas>=+d.total){ celebrate(); track('divida_quitada'); maybeAskReview('divida_quitada'); }
+      track('parcela_paga'); if(+d.pagas>=+d.total){ celebrate(); track('divida_quitada'); maybeAskReview('divida_quitada'); achieve({tipo:'divida', nome:d.nome, total:(+d.parcela||0)*(+d.total||0)}); }
     });
     el.append(head,fields,bar,info,pay); box.append(el);
     d._el={bar:bar.firstChild,info,pay};
@@ -221,6 +222,7 @@ function buildTips(n){
   const t=[]; const r=S.reserva;
   const nearDebt=S.dividas.find(d=>{const rest=(+d.total||0)-(+d.pagas||0); return rest>0&&rest<=2;});
   if(nearDebt){const rest=(+nearDebt.total||0)-(+nearDebt.pagas||0); t.push('Falta '+rest+' parcela'+(rest>1?'s':'')+' pra quitar o '+nearDebt.nome+'. Tá quase! 💪');}
+  if((P.streak||0)>=2 && (P.lastLaunchDay===isoToday())) t.push('🔥 '+P.streak+' dias seguidos anotando! Quem anota todo dia descobre pra onde vai o dinheiro.');
   if(n.variaveis===0) t.push('Você ainda não lançou gastos do dia este mês. Anotar os pequenos é o que evita o susto no fim do mês.');
   if(+r.atual < n.fixoCompromisso) t.push('Meta de fôlego: juntar '+money(n.fixoCompromisso)+' na reserva = 1 mês de contas pagas mesmo sem renda.');
   if(n.sobra>0) t.push('Sobrou '+money(n.sobra)+' este mês. Mandar metade pra reserva já acelera bastante sua meta.');
@@ -350,7 +352,7 @@ function paintReserva(n,animate){
   else nota='Sua sobra média está no vermelho — o foco agora é fechar o mês no azul antes de guardar com folga.';
   document.getElementById('resNota').textContent=nota;
   const bucket=Math.floor((meta>0?atual/meta:0)*4);
-  if(bucket>prevResBucket && bucket>0){ celebrate(); maybeAskReview('meta_reserva'); }
+  if(bucket>prevResBucket && bucket>0){ celebrate(); maybeAskReview('meta_reserva'); achieve({tipo:'reserva', pct:Math.min(100,bucket*25), atual}); }
   prevResBucket=bucket;
 }
 function paintDividas(n,animate){
@@ -557,6 +559,12 @@ function paintQuick(){
   document.getElementById('qSave').textContent=qType==='reserva'?'Guardar na reserva':qType==='extra'?'Lançar renda':'Lançar gasto';
 }
 document.querySelectorAll('#qType button').forEach(b=>b.addEventListener('click',()=>{qType=b.dataset.q;paintQuick();haptic(5);}));
+function openQuick(tipo,nome){
+  document.getElementById('qVal').value=''; document.getElementById('qName').value=nome||''; qCat=null;
+  document.getElementById('qDate').value=defaultDate(); qType=tipo||'var';
+  paintQuick(); openSheet(document.getElementById('quickSheet'));
+  setTimeout(()=>document.getElementById('qVal').focus(),250);
+}
 document.getElementById('fab').addEventListener('click',()=>{
   haptic(8); qType=document.querySelector('#view-reserva.active')?'reserva':'var';
   document.getElementById('qVal').value=''; document.getElementById('qName').value=''; qCat=null;
@@ -577,7 +585,13 @@ function quickSave(){
   if(typedCat) item.cat=typedCat;
   list.push(item); markTouched(); buildMes(); updateComputed(true); save(); closeSheet(); haptic(15);
   launchHooks.forEach(f=>{try{f(item,qType);}catch(e){console.error(e);}});
-  P.launches=(P.launches||0)+1; savePrefs(); if(P.launches===8) maybeAskReview('lancamentos');
+  P.launches=(P.launches||0)+1;
+  // Sequência de dias seguidos anotando (só conta 1 vez por dia).
+  const hoje=isoToday(), ontem=(()=>{const d=new Date(); d.setDate(d.getDate()-1); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})();
+  if(P.lastLaunchDay!==hoje){ P.streak=P.lastLaunchDay===ontem?(P.streak||0)+1:1; P.lastLaunchDay=hoje;
+    if([3,7,14,30].includes(P.streak)){ track('sequencia',{dias:P.streak}); setTimeout(()=>toast('🔥 '+P.streak+' dias seguidos anotando! É assim que se ganha fôlego.'),3200); } }
+  updateCoach();
+  savePrefs(); if(P.launches===8) maybeAskReview('lancamentos');
   toast((qType==='extra'?'Renda de ':'Gasto de ')+money(v)+' lançado','Desfazer',()=>{const i=list.indexOf(item);if(i>-1)list.splice(i,1);buildMes();updateComputed(true);save();});
 }
 document.getElementById('qSave').addEventListener('click',quickSave);
@@ -629,9 +643,9 @@ document.getElementById('importFile').addEventListener('change',e=>{
 window.FolegoApp={
   getState:()=>S, replaceState, exportData, toast, haptic, celebrate, switchTab,
   isFirstRun:()=>firstRun, maybeOnboard, openSheet, closeSheet, requirePremium,
-  cur, ensureMonth, monthNumbers, money, money1, fmtMonth, abrevMonth, shiftMonth, todayId, save, markTouched, buildMes, updateComputed,
+  cur, ensureMonth, monthNumbers, openQuick, money, money1, fmtMonth, abrevMonth, shiftMonth, todayId, save, markTouched, buildMes, updateComputed,
   isPremium:()=>plan.isPremium(), track, openCatPicker,
-  onComputed:f=>computedHooks.push(f), onLaunch:f=>launchHooks.push(f),
+  onComputed:f=>computedHooks.push(f), onLaunch:f=>launchHooks.push(f), onAchievement:f=>achievementHooks.push(f),
   setPlan:p=>{plan=Object.assign(plan,p);}, refreshPlan, onSheetClose:f=>sheetCloseHooks.push(f),
   wipe:()=>{try{localStorage.removeItem(KEY);}catch(e){} S=defaults();firstRun=true;onboarded=false;prevResBucket=0;init();},
   onSave:f=>saveHooks.push(f), onTab:f=>tabHooks.push(f)

@@ -50,7 +50,12 @@
     const p = store.get(PROFILE_KEY);
     return p && user && p.uid === user.id ? p.trialStartedAt : Date.now();
   }
-  const trialDaysLeft = () => Math.max(0, Math.ceil((trialStart() + C.TRIAL_DAYS*DAY - Date.now()) / DAY));
+  /** Dias de teste da conta: os padrão + os ganhos por indicação. */
+  function trialTotal(){
+    const p = store.get(PROFILE_KEY);
+    return C.TRIAL_DAYS + (p && user && p.uid === user.id ? (p.bonusDays||0) : 0);
+  }
+  const trialDaysLeft = () => Math.max(0, Math.ceil((trialStart() + trialTotal()*DAY - Date.now()) / DAY));
   function premiumInfo(){
     const p = store.get(PREM_KEY);
     return p && user && p.uid === user.id && p.expiresAt > Date.now() ? p : null;
@@ -92,9 +97,49 @@
     [USER_KEY, PROFILE_KEY, PREM_KEY, SYNC_KEY, ENDED_DISMISS_KEY].forEach(store.del);
   }
   async function loadProfile(){
-    const {data, error} = await sb.from('profiles').select('trial_started_at').eq('id', user.id).maybeSingle();
+    const {data, error} = await sb.from('profiles').select('trial_started_at,bonus_days').eq('id', user.id).maybeSingle();
     if(error) throw error;
-    if(data) store.set(PROFILE_KEY, {uid:user.id, trialStartedAt: Date.parse(data.trial_started_at)});
+    if(data) store.set(PROFILE_KEY, {uid:user.id, trialStartedAt: Date.parse(data.trial_started_at), bonusDays: +data.bonus_days||0});
+  }
+
+  /* ---------- indique e ganhe ---------- */
+  const REF_KEY = 'folego-ref', REF_CODE_KEY = 'folego-my-ref';
+  (function captureRef(){
+    try{
+      const u = new URL(location.href), code = (u.searchParams.get('ref')||'').trim().toUpperCase();
+      if(/^[A-Z0-9]{4,12}$/.test(code)){
+        localStorage.setItem(REF_KEY, code);
+        u.searchParams.delete('ref'); history.replaceState(null, '', u.pathname + u.search + u.hash);
+        A.track('convite_aberto');
+      }
+    }catch(e){}
+  })();
+  const pendingRef = () => { try{ return localStorage.getItem(REF_KEY); }catch(e){ return null; } };
+  async function claimPendingRef(){
+    const code = pendingRef(); if(!code || !sb || !user) return;
+    try{
+      const {data, error} = await sb.rpc('claim_referral', {p_code: code});
+      if(error) throw error;
+      try{ localStorage.removeItem(REF_KEY); }catch(e){}
+      if(data && data.ok){
+        await loadProfile().catch(()=>{});
+        A.track('convite_usado');
+        setTimeout(() => App.toast('🎁 Convite aceito: +' + data.bonus_days + ' dias de Premium para você e para quem te indicou!'), 600);
+      }else A.track('convite_recusado', {motivo: data && data.reason});
+    }catch(e){ /* tenta de novo no próximo login */ }
+  }
+  async function myRefCode(){
+    const cached = store.get(REF_CODE_KEY);
+    if(cached && user && cached.uid === user.id) return cached.code;
+    if(!sb || !user) return null;
+    const {data, error} = await sb.rpc('my_ref_code');
+    if(error || !data) return null;
+    store.set(REF_CODE_KEY, {uid:user.id, code:data});
+    return data;
+  }
+  async function myReferrals(){
+    if(!sb || !user) return 0;
+    try{ const {data} = await sb.from('referrals').select('referred_id').eq('referrer_id', user.id); return (data||[]).length; }catch(e){ return 0; }
   }
 
   /* ---------- Google Sign-In → Supabase Auth ---------- */
@@ -107,6 +152,7 @@
       setUser(data.user);
       A.identify(user.id);
       await loadProfile().catch(()=>{});
+      await claimPendingRef();
       A.track('login_ok', {origem: paywallFeature ? 'paywall' : 'conta', teste_ativo: status() === 'trial'});
       App.haptic(15);
       const wasPaywall = !!paywallFeature;
@@ -422,8 +468,8 @@
       plan = '<div class="plan premium"><div><b>⭐ Fôlego Premium</b><small>' + (p.sku === C.PLAY_SKU_ANUAL ? 'plano anual' : 'plano mensal') + ' · renova em ' + new Date(p.expiresAt).toLocaleDateString('pt-BR') + '</small></div>' +
         '<a class="btn-ghost" href="' + manageUrl() + '" target="_blank" rel="noopener">Gerenciar</a></div>';
     }else if(st === 'trial'){
-      const d = trialDaysLeft(); const pct = Math.round((1 - d/C.TRIAL_DAYS)*100);
-      plan = '<div class="plan premium"><div><b>⭐ Premium grátis</b><small>' + d + ' de ' + C.TRIAL_DAYS + ' dias restantes</small></div>' +
+      const d = trialDaysLeft(); const pct = Math.round((1 - d/trialTotal())*100);
+      plan = '<div class="plan premium"><div><b>⭐ Premium grátis</b><small>' + d + ' de ' + trialTotal() + ' dias restantes</small></div>' +
         '<button class="btn-primary" id="aSub">Ver planos</button></div>' +
         '<div class="bar" style="margin-top:10px"><span style="width:' + pct + '%"></span></div>';
     }else{
@@ -496,7 +542,8 @@
         '<ul class="feat">' + [['📊','Saiba quanto sobra no mês, mesmo com comissão'],['🛟','Monte sua reserva de emergência'],['💳','Saia das dívidas com um plano'],['☁️','Seus dados salvos na sua conta Google']]
           .map(f => '<li><span>'+f[0]+'</span>'+f[1]+'</li>').join('') + '</ul>' +
         '<div class="gsi gsi-slot" id="gsiGate"></div>' +
-        '<p class="fine">Ao entrar você ganha <b>' + C.TRIAL_DAYS + ' dias de Premium grátis</b>, sem cartão.</p>' +
+        (pendingRef() ? '<p class="gift">🎁 Você foi convidado! Entre e ganhe <b>' + (C.TRIAL_DAYS + 7) + ' dias de Premium grátis</b>.</p>'
+          : '<p class="fine">Ao entrar você ganha <b>' + C.TRIAL_DAYS + ' dias de Premium grátis</b>, sem cartão.</p>') +
         '<p class="fine"><a href="privacy.html" target="_blank">Privacidade</a> · <a href="termos.html" target="_blank">Termos de uso</a></p></div>';
       renderGoogleButton($('gsiGate'));
       return;
@@ -568,5 +615,5 @@
   }
 
   boot();
-  window.FolegoAccount = {status, isPremium, subscribe, openPaywall, client: () => sb, user: () => user};
+  window.FolegoAccount = {status, isPremium, subscribe, openPaywall, client: () => sb, user: () => user, myRefCode, myReferrals, trialDaysLeft};
 })();

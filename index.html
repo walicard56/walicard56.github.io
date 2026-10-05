@@ -3,13 +3,28 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Fôlego</title>
+<title>Fôlego — controle financeiro pra renda variável</title>
 <link rel="manifest" href="manifest.webmanifest">
 <script src="config.js"></script>
 <script>try{var t=(JSON.parse(localStorage.getItem('folego-prefs'))||{}).theme;if(t==='light'||t==='dark')document.documentElement.dataset.theme=t;}catch(e){}</script>
 <meta name="theme-color" content="#4f46e5">
 <meta name="google-adsense-account" content="ca-pub-2779913625636856">
-<meta name="description" content="Controle financeiro para quem vive de renda variável. Veja quanto sobra, guarde sua reserva e acompanhe dívidas.">
+<meta name="description" content="Controle financeiro pra quem ganha comissão, faz corridas, é MEI ou freela. Saiba quanto falta pra fechar o mês, monte sua reserva e saia das dívidas. Grátis.">
+<link rel="canonical" href="https://walicard56.github.io/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Fôlego">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:url" content="https://walicard56.github.io/">
+<meta property="og:title" content="Fôlego — saiba quanto falta pra fechar o mês">
+<meta property="og:description" content="Controle financeiro pra comissionados, motoristas de app, MEI e freelas. Grátis, e com 7 dias de Premium.">
+<meta property="og:image" content="https://walicard56.github.io/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Fôlego: meta do mês mostrando quanto falta e quantas corridas por dia">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Fôlego — saiba quanto falta pra fechar o mês">
+<meta name="twitter:description" content="Controle financeiro pra quem vive de renda variável. Grátis.">
+<meta name="twitter:image" content="https://walicard56.github.io/og-image.png">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -72,6 +87,7 @@
         <div class="label" id="sobraLabel">Sobra do mês</div>
         <div class="big num" id="sobraTotal" data-v="0">R$ 0</div>
         <span class="status pos" id="sobraStatus">—</span>
+        <button class="share-chip" id="shareMonth" hidden>📤 Compartilhar</button>
       </div>
       <div class="card reality">
         <div class="label">Só com o salário fixo</div>
@@ -80,6 +96,7 @@
       </div>
     </div>
 
+    <section id="metaCard" hidden></section>
     <section id="rendaCard"></section>
     <section id="meiCard" hidden></section>
 
@@ -189,12 +206,15 @@
   <!-- CONTA -->
   <div class="view" id="view-conta">
     <section id="acctBox" hidden></section>
+    <section id="inviteBox" hidden></section>
     <section>
       <div class="sec-head"><h2>Preferências</h2></div>
       <div class="setrow"><span>Tema</span>
         <div class="seg" id="themeSeg"><button data-theme-opt="auto">Auto</button><button data-theme-opt="light">Claro</button><button data-theme-opt="dark">Escuro</button></div></div>
       <div class="setrow"><span>Vibrar ao tocar</span>
         <label class="switch" style="margin:0"><input type="checkbox" id="toggleHaptic"><span class="track"></span></label></div>
+      <div class="setrow"><span>Meta do mês<small class="hint" style="display:block">vendas, corridas ou serviços que faltam</small></span>
+        <button class="btn-ghost" id="metaConfig">Configurar</button></div>
       <div class="setrow"><span>Sou MEI<small class="hint" style="display:block">mostra a área MEI: DAS e limite de faturamento</small></span>
         <label class="switch" style="margin:0"><input type="checkbox" id="toggleMei"><span class="track"></span></label></div>
       <div class="setrow" id="pushRow"><span>Lembrete de contas a pagar<small class="hint" style="display:block">notificação 1 dia antes e no dia do vencimento</small></span>
@@ -276,6 +296,11 @@
   <button class="sheet-x" data-close-sheet aria-label="fechar">×</button>
   <div id="importBody"></div>
 </div>
+<div class="sheet" id="shareSheet" role="dialog" aria-label="Compartilhar">
+  <div class="grab"></div>
+  <button class="sheet-x" data-close-sheet aria-label="fechar">×</button>
+  <div id="shareBody"></div>
+</div>
 <div class="sheet" id="reviewSheet" role="dialog" aria-label="Avaliação">
   <div class="grab"></div>
   <div id="reviewBody"></div>
@@ -294,10 +319,12 @@
 <script src="js/account.js"></script>
 <script src="js/relatorios.js"></script>
 <script src="js/inteligencia.js"></script>
+<script src="js/meta.js"></script>
 <script src="js/lembretes.js"></script>
 <script src="js/lumi.js"></script>
 <script src="js/importar.js"></script>
 <script src="js/instalar.js"></script>
 <script src="js/anuncios.js"></script>
+<script src="js/compartilhar.js"></script>
 </body>
 </html>

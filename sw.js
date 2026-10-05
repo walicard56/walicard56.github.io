@@ -1,5 +1,5 @@
-const CACHE = 'folego-v9';
-const ASSETS = ['./', './index.html', './config.js', './css/app.css', './js/analytics.js', './js/categorias.js', './js/app.js', './js/account.js', './js/relatorios.js', './js/inteligencia.js', './js/lembretes.js', './js/lumi.js', './js/importar.js', './js/instalar.js', './js/anuncios.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './privacy.html', './termos.html'];
+const CACHE = 'folego-v10';
+const ASSETS = ['./', './index.html', './config.js', './css/app.css', './js/analytics.js', './js/categorias.js', './js/app.js', './js/account.js', './js/relatorios.js', './js/inteligencia.js', './js/lembretes.js', './js/lumi.js', './js/importar.js', './js/instalar.js', './js/anuncios.js', './js/compartilhar.js', './js/meta.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './privacy.html', './termos.html'];
 const STATIC_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com', 'cdn.jsdelivr.net'];
 
 self.addEventListener('install', e => {

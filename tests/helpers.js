@@ -19,17 +19,28 @@ const supabaseStub = `window.supabase={createClient(){
      signInWithIdToken:async()=>{const u={id:'u1',email:'ana@example.com',user_metadata:{full_name:'Ana Souza',avatar_url:''}};
        await db('newuser',u.id);localStorage.setItem('folego-auth',JSON.stringify({user:u}));return{data:{user:u},error:null}},
      signOut:async()=>{localStorage.removeItem('folego-auth')}},
-   from:q, functions:{invoke:async(n,o)=>({data:await db('fn',{n,body:o.body}),error:null})}};}};`;
+   from:q, rpc:async(name,args)=>({data:await db('rpc',{name,args}),error:null}),
+   functions:{invoke:async(n,o)=>({data:await db('fn',{n,body:o.body}),error:null})}};}};`;
 
 /** Banco "do servidor" compartilhado entre os celulares de um teste. */
 function createServer() {
-  const DB = { profiles: {}, user_data: {}, subscriptions: {}, feedback: [], push_subscriptions: {} };
+  const DB = { profiles: {}, user_data: {}, subscriptions: {}, feedback: [], push_subscriptions: {}, referrals: [] };
   const server = {
-    DB, trialAgoDays: 0, premiumUntil: null, functionCalls: [], fnHandlers: {},
+    DB, trialAgoDays: 0, premiumUntil: null, functionCalls: [], fnHandlers: {}, rpcCalls: [],
     async handle(op, a) {
       if (op === 'newuser') {
         if (!DB.profiles[a]) DB.profiles[a] = { trial_started_at: new Date(Date.now() - server.trialAgoDays * 864e5).toISOString() };
         return;
+      }
+      if (op === 'rpc') {
+        server.rpcCalls.push(a);
+        if (a.name === 'my_ref_code') return 'ANA123';
+        if (a.name === 'claim_referral') {
+          if (a.args.p_code !== 'AMIGO7') return { ok: false, reason: 'invalid_code' };
+          DB.profiles.u1.bonus_days = (DB.profiles.u1.bonus_days || 0) + 7;
+          return { ok: true, bonus_days: 7 };
+        }
+        return null;
       }
       if (op === 'fn') {
         server.functionCalls.push(a);
@@ -38,6 +49,7 @@ function createServer() {
         if (a.n === 'verify-purchase') return { expires_at: server.premiumUntil };
         return {};
       }
+      if (a.table === 'referrals') return { data: DB.referrals, error: null };
       const t = DB[a.table];
       if (a.insert) { if (Array.isArray(t)) t.push(a.insert); return { data: null, error: null }; }
       if (a.upsert) {

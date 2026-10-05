@@ -13,8 +13,8 @@ async function hasPremium(admin: ReturnType<typeof adminClient>, userId: string)
   const { data: sub } = await admin.from('subscriptions').select('expires_at')
     .eq('user_id', userId).gt('expires_at', new Date().toISOString()).limit(1);
   if (sub && sub.length) return true;
-  const { data: prof } = await admin.from('profiles').select('trial_started_at').eq('id', userId).maybeSingle();
-  return !!prof && Date.parse(prof.trial_started_at) + TRIAL_DAYS * DAY > Date.now();
+  const { data: prof } = await admin.from('profiles').select('trial_started_at,bonus_days').eq('id', userId).maybeSingle();
+  return !!prof && Date.parse(prof.trial_started_at) + (TRIAL_DAYS + (prof.bonus_days ?? 0)) * DAY > Date.now();
 }
 
 Deno.serve(async (req) => {
