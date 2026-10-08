@@ -9,7 +9,7 @@ const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function seedMonth(){return{
   ganhos:[{nome:'Salário',valor:0}],
-  comPrevNome:'Comissão (prevista)', comPrev:0, comReal:0,
+  comPrevNome:'Comissão', comPrev:0, comReal:0,
   fixos:[{nome:'Aluguel / moradia',valor:0},{nome:'Energia',valor:0},{nome:'Água',valor:0},
     {nome:'Internet e celular',valor:0},{nome:'Mercado',valor:0},{nome:'Transporte',valor:0}],
   variaveis:[], extras:[], touched:false
@@ -169,7 +169,7 @@ function buildMes(){
   const v=document.getElementById('varList'); v.innerHTML='';
   if(m.variaveis.length===0){const p=document.createElement('p');p.className='hint';p.textContent='Nenhum gasto variável lançado ainda este mês.';v.append(p);}
   m.variaveis.slice().sort((a,b)=>(b.data||'').localeCompare(a.data||'')).forEach(it=>v.append(makeRow(it,m.variaveis,'var',{cat:true,date:true})));
-  document.getElementById('comPrevNome').value=m.comPrevNome||'Comissão (prevista)';
+  document.getElementById('comPrevNome').value=(m.comPrevNome&&m.comPrevNome!=='Comissão (prevista)')?m.comPrevNome:'Comissão';
   document.getElementById('comPrev').value=m.comPrev;
   document.getElementById('comReal').value=m.comReal||'';
   applyComissao();

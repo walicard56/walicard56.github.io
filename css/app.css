@@ -367,7 +367,7 @@ section.clickable{cursor:pointer} section.clickable:active{transform:scale(.99)}
 .meter.over .mfoot{color:var(--neg); font-weight:600} .meter.warn .mfoot{color:var(--gold); font-weight:600}
 .msel{font-family:inherit; font-size:.78rem; color:var(--ink); background:var(--surface-2); border:1px solid var(--line); border-radius:8px; padding:4px 6px}
 .cbars{display:flex; flex-direction:column}
-.cbar{display:grid; grid-template-columns:minmax(96px,38%) 1fr auto; align-items:center; gap:10px; padding:8px 6px; border-radius:9px; cursor:pointer}
+.cbar{display:grid; grid-template-columns:minmax(120px,46%) 1fr auto; align-items:center; gap:10px; padding:8px 6px; border-radius:9px; cursor:pointer}
 .cbar:hover,.cbar.open,.cbar:focus-visible{background:var(--surface-2); outline:none}
 .cbar .cl{font-size:.82rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .cbar .ct{height:14px; background:transparent}

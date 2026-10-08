@@ -1,16 +1,13 @@
-# Ficha da Google Play — Fôlego
+TEXTOS DA FICHA DA GOOGLE PLAY — Fôlego
+(copie e cole em Presença na loja › Ficha principal da loja, idioma pt-BR)
 
-Textos prontos para colar no Play Console (Presença na loja › Ficha principal da loja).
-Limites do Google entre parênteses.
-
-## Nome do app (30)
+=== Nome do app (22/30) ===
 Fôlego: Renda Variável
 
-## Descrição curta (80)
+=== Descrição curta (78/80) ===
 Saiba quanto falta pra fechar o mês: finanças p/ comissionado, MEI e motorista
 
-## Descrição completa (4000)
-
+=== Descrição completa (2019/4000) ===
 Ganha comissão, é MEI, autônomo, motorista de app ou freelancer? Então você sabe: tem mês que sobra, tem mês que falta. O Fôlego é o controle financeiro feito para quem vive de renda variável.
 
 🎯 META DO MÊS: QUANTO FALTA?
@@ -59,32 +56,3 @@ O plano grátis é seu para sempre. O Premium custa R$ 9,99/mês ou R$ 79,90/ano
 
 🔒 PRIVACIDADE
 Seus dados financeiros são só seus. Não vendemos seus dados.
-
-## Categoria e tags
-- Categoria: Finanças
-- Tags: Orçamento, Finanças pessoais, Controle de gastos
-
-## Palavras-chave para usar (já distribuídas no texto)
-controle financeiro, controle de gastos, renda variável, comissão, MEI, autônomo,
-reserva de emergência, dívidas, orçamento, planilha de gastos, finanças pessoais
-
-## Capturas de tela (8 no máximo, 1080×1920)
-Faça no celular e coloque um título grande em cima de cada uma (Canva tem modelos grátis):
-1. Meta do mês — "Saiba quanto falta: em vendas, corridas ou serviços"
-1b. Tela Mês com a Lumi — "Saiba quanto sobra, mesmo com comissão"
-2. Cartões "Sobra do mês" × "Só com o salário" — "Suas contas dependem da comissão?"
-3. "Posso gastar?" respondido — "Pergunte antes de gastar"
-4. Lançamento rápido (+) aberto — "Anote um gasto em 3 segundos"
-5. Reserva com a barra — "Monte sua reserva de emergência"
-6. Dívidas — "Veja quando cada dívida termina"
-7. Relatório por categoria (Premium) — "Descubra para onde vai seu dinheiro"
-8. Tela escura — "Bonito de dia e de noite"
-
-## Imagem de destaque (1024×500)
-Fundo roxo (#4f46e5 → #7c6cff), logo à esquerda e o texto:
-"Renda variável sem susto no fim do mês".
-
-## Respostas prontas para avaliações
-- 5★: "Que bom que o Fôlego está ajudando! 💜 Se puder, conte para um amigo que também ganha comissão."
-- Reclamação de preço: "Obrigado pelo retorno! O plano grátis continua liberado para sempre, com mês, reserva e dívida. O Premium é opcional, tira os anúncios e ajuda a manter o app."
-- Bug: "Sentimos muito! Pode mandar detalhes pelo e-mail de suporte? Vamos corrigir rápido."

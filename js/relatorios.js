@@ -22,7 +22,7 @@
     if(n && n.dividasMes > 0) out._dividas = n.dividasMes;
     return out;
   }
-  const catInfo = id => id === '_dividas' ? {id, emoji:'💳', nome:'Parcelas de dívidas'} : Cats.get(id);
+  const catInfo = id => id === '_dividas' ? {id, emoji:'💳', nome:'Parcelas'} : Cats.get(id);
 
   /* ---------- orçamento ---------- */
   function budgets(){ const st = S(); if(!st.budgets) st.budgets = {}; return st.budgets; }
